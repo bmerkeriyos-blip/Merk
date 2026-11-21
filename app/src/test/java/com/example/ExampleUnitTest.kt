@@ -1,9 +1,9 @@
 package com.example
 
-import com.example.core.common.EthiopicCalendarUtil
 import com.example.core.common.ExportHelper
 import com.example.core.common.MissionRank
 import com.example.core.common.RankProgression
+import com.example.core.common.ShinobiTimeUtil
 import com.example.data.local.PlannerTaskEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -14,20 +14,15 @@ import java.time.LocalTime
 class ExampleUnitTest {
 
     @Test
-    fun `ethiopian enkutatash conversion is accurate`() {
-        val eth = EthiopicCalendarUtil.toEthiopic(LocalDate.of(2025, 9, 11))
-        assertEquals(2018, eth.year)
-        assertEquals(1, eth.month)
-        assertEquals(1, eth.day)
-        assertEquals("Meskerem 1, 2018 E.C.", eth.formatShort())
-
-        val pagume6 = EthiopicCalendarUtil.toEthiopic(LocalDate.of(2023, 9, 11))
-        assertEquals("Pagume 6, 2015 E.C.", pagume6.formatShort())
+    fun `standard date and time formatting works cleanly`() {
+        assertEquals("Thu, Sep 11, 2025", ShinobiTimeUtil.formatDateHeader(LocalDate.of(2025, 9, 11)))
+        assertEquals("14:30", ShinobiTimeUtil.formatTime(14 * 60 + 30, use24Hour = true))
+        assertEquals("2:30 PM", ShinobiTimeUtil.formatTime(14 * 60 + 30, use24Hour = false))
     }
 
     @Test
     fun `ethiopian clock shifts 6 hours from standard day`() {
-        val formatted = EthiopicCalendarUtil.formatEthiopianClock(LocalTime.of(13, 30))
+        val formatted = ShinobiTimeUtil.formatEthiopianClock(LocalTime.of(13, 30))
         assertEquals("7:30 ET (Afternoon)", formatted)
     }
 
@@ -35,11 +30,11 @@ class ExampleUnitTest {
     fun `rank progression advances levels and titles deterministically`() {
         val lvl1 = RankProgression.computeLevelInfo(0)
         assertEquals(1, lvl1.level)
-        assertEquals("Academy Initiate", lvl1.title)
+        assertEquals("Academy Student", lvl1.title)
 
         val higher = RankProgression.computeLevelInfo(4000)
         assertTrue(higher.level >= 5)
-        assertTrue(RankProgression.titleForLevel(35) == "Grand Cyber Kage")
+        assertTrue(RankProgression.titleForLevel(35) == "Grand Kage")
         assertEquals(400, MissionRank.S.baseXp)
     }
 

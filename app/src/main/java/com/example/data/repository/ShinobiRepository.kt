@@ -1,14 +1,16 @@
 package com.example.data.repository
 
 import android.content.Context
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.common.MissionRank
 import com.example.core.common.RankProgression
 import com.example.core.common.RecurrenceRule
 import com.example.core.notifications.ReminderScheduler
 import com.example.data.local.*
 import com.example.data.remote.*
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.auth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
@@ -27,6 +29,17 @@ class ShinobiRepository(
     private val db: ShinobiDatabase,
     private val remote: FirestoreSyncRepository
 ) {
+    companion object {
+        const val LOCAL_GUEST_UID = "local_shinobi"
+    }
+
+    private fun isCloudSyncAllowed(userId: String): Boolean =
+        userId != LOCAL_GUEST_UID && Firebase.auth.currentUser?.uid == userId
+
+    private suspend fun shouldSyncToCloud(userId: String): Boolean {
+        if (!isCloudSyncAllowed(userId)) return false
+        return settingsDao.getSettingsOnce(userId)?.offlineModeOnly != true
+    }
     private val profileDao = db.userProfileDao()
     private val subjectDao = db.subjectDao()
     private val taskDao = db.plannerTaskDao()
@@ -53,18 +66,18 @@ class ShinobiRepository(
     fun observeScans(uid: String): Flow<List<TimetableScanEntity>> = notesDao.observeScans(uid)
     fun observeSettings(uid: String): Flow<UserSettingsEntity?> = settingsDao.observeSettings(uid)
 
-    suspend fun ensureUserInitialized(firebaseUser: FirebaseUser) {
-        val uid = firebaseUser.uid
+    suspend fun ensureUserInitialized(firebaseUser: FirebaseUser?) {
+        val uid = firebaseUser?.uid ?: LOCAL_GUEST_UID
         val existingProfile = profileDao.getProfileOnce(uid)
         if (existingProfile == null) {
-            val remoteProfile = remote.fetchUserProfile(uid).getOrNull()
+            val remoteProfile = if (firebaseUser != null) remote.fetchUserProfile(uid).getOrNull() else null
             val newProfile = if (remoteProfile != null) {
                 UserProfileEntity(
                     uid = uid,
-                    displayName = remoteProfile.displayName.ifBlank { firebaseUser.displayName ?: "Shinobi Scholar" },
+                    displayName = remoteProfile.displayName.ifBlank { firebaseUser?.displayName ?: "Shinobi Scholar" },
                     username = remoteProfile.username.ifBlank { "shinobi_${uid.take(6)}" },
-                    email = remoteProfile.email.ifBlank { firebaseUser.email ?: "" },
-                    photoUrl = remoteProfile.photoUrl ?: firebaseUser.photoUrl?.toString().orEmpty(),
+                    email = remoteProfile.email.ifBlank { firebaseUser?.email ?: "" },
+                    photoUrl = remoteProfile.photoUrl ?: firebaseUser?.photoUrl?.toString().orEmpty(),
                     university = remoteProfile.university,
                     department = remoteProfile.department,
                     academicYear = remoteProfile.academicYear,
@@ -76,7 +89,7 @@ class ShinobiRepository(
                     lastActiveDate = remoteProfile.lastActiveDate.orEmpty(),
                     onboardingCompleted = remoteProfile.onboardingCompleted
                 )
-            } else {
+            } else if (firebaseUser != null) {
                 UserProfileEntity(
                     uid = uid,
                     displayName = firebaseUser.displayName ?: "Shinobi Scholar",
@@ -88,9 +101,21 @@ class ShinobiRepository(
                     ninjaTitle = RankProgression.titleForLevel(1),
                     onboardingCompleted = false
                 )
+            } else {
+                UserProfileEntity(
+                    uid = LOCAL_GUEST_UID,
+                    displayName = "Shinobi Scholar",
+                    username = "local_shinobi",
+                    email = "",
+                    photoUrl = "",
+                    xp = 0,
+                    level = 1,
+                    ninjaTitle = RankProgression.titleForLevel(1),
+                    onboardingCompleted = false
+                )
             }
             profileDao.upsertProfile(newProfile)
-            if (remoteProfile == null) {
+            if (remoteProfile == null && firebaseUser != null) {
                 syncProfileToCloud(newProfile)
             }
         }
@@ -132,8 +157,7 @@ class ShinobiRepository(
     suspend fun saveProfile(profile: UserProfileEntity) {
         val updated = profile.copy(updatedAtEpochMs = System.currentTimeMillis())
         profileDao.upsertProfile(updated)
-        val offlineOnly = settingsDao.getSettingsOnce(profile.uid)?.offlineModeOnly ?: false
-        if (!offlineOnly) {
+        if (shouldSyncToCloud(profile.uid)) {
             syncProfileToCloud(updated)
         }
     }
@@ -167,8 +191,7 @@ class ShinobiRepository(
     suspend fun addOrUpdateSubject(subject: SubjectEntity) {
         val updated = subject.copy(updatedAtEpochMs = System.currentTimeMillis(), synced = false)
         subjectDao.upsertSubject(updated)
-        val offlineOnly = settingsDao.getSettingsOnce(subject.userId)?.offlineModeOnly ?: false
-        if (!offlineOnly) {
+        if (shouldSyncToCloud(subject.userId)) {
             val res = remote.upsertSubject(
                 updated.id,
                 CloudSubject(
@@ -200,8 +223,7 @@ class ShinobiRepository(
         }
         ReminderScheduler.scheduleTaskReminders(context, entity)
 
-        val offlineOnly = settingsDao.getSettingsOnce(entity.userId)?.offlineModeOnly ?: false
-        if (!offlineOnly) {
+        if (shouldSyncToCloud(entity.userId)) {
             val summary = subtasks.joinToString(" | ") { "${if (it.completed) "[x]" else "[ ]"} ${it.title}" }
                 .ifBlank { null }
             val res = remote.upsertTask(
@@ -244,7 +266,7 @@ class ShinobiRepository(
      */
     suspend fun toggleTaskCompletion(task: PlannerTaskEntity): Pair<Int, String?> {
         val nowCompleted = !task.completed
-        val todayIso = EthiopicCalendarUtil.nowZoned().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayIso = ShinobiTimeUtil.nowZoned().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val updatedTask = task.copy(
             completed = nowCompleted,
             completedAtIso = if (nowCompleted) todayIso else ""
@@ -369,7 +391,9 @@ class ShinobiRepository(
     suspend fun deleteTask(task: PlannerTaskEntity) {
         ReminderScheduler.cancelTaskReminders(context, task.id)
         taskDao.deleteById(task.id)
-        remote.deleteTask(task.id)
+        if (shouldSyncToCloud(task.userId)) {
+            remote.deleteTask(task.id)
+        }
     }
 
     suspend fun duplicateTask(task: PlannerTaskEntity) {
@@ -412,8 +436,7 @@ class ShinobiRepository(
         )
         sessionDao.insertSession(session)
 
-        val offlineOnly = settingsDao.getSettingsOnce(userId)?.offlineModeOnly ?: false
-        if (!offlineOnly) {
+        if (shouldSyncToCloud(userId)) {
             remote.insertStudySession(
                 session.id,
                 CloudStudySession(
@@ -428,7 +451,7 @@ class ShinobiRepository(
             )
         }
 
-        val todayIso = EthiopicCalendarUtil.nowZoned().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayIso = ShinobiTimeUtil.nowZoned().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val profile = profileDao.getProfileOnce(userId)
         var rankUpTitle: String? = null
         if (profile != null) {
@@ -454,8 +477,7 @@ class ShinobiRepository(
     suspend fun saveNote(note: StudyNoteEntity) {
         val updated = note.copy(updatedAtEpochMs = System.currentTimeMillis(), synced = false)
         notesDao.upsertNote(updated)
-        val offlineOnly = settingsDao.getSettingsOnce(note.userId)?.offlineModeOnly ?: false
-        if (!offlineOnly) {
+        if (shouldSyncToCloud(note.userId)) {
             remote.upsertNote(
                 updated.id,
                 CloudNote(
@@ -490,6 +512,9 @@ class ShinobiRepository(
     suspend fun saveChatMessage(message: ChatMessageEntity) = chatDao.upsertMessage(message)
 
     suspend fun syncPendingToCloud(userId: String): Result<Int> {
+        if (!isCloudSyncAllowed(userId)) {
+            return Result.failure(IllegalStateException("Sign in with Google under Settings to sync to cloud."))
+        }
         var syncedCount = 0
         val unsyncedTasks = taskDao.getUnsyncedTasks(userId)
         for (task in unsyncedTasks) {
@@ -542,7 +567,7 @@ class ShinobiRepository(
         notesDao.deleteAllNotesForUser(userId)
         settingsDao.deleteSettings(userId)
         profileDao.deleteProfile(userId)
-        return remote.deleteAllUserCloudData()
+        return if (isCloudSyncAllowed(userId)) remote.deleteAllUserCloudData() else Result.success(Unit)
     }
 
     fun detectConflicts(tasksForDay: List<PlannerTaskEntity>): List<TaskConflict> {

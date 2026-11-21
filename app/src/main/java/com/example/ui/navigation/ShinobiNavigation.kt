@@ -86,6 +86,8 @@ fun ShinobiAppShell(
     plannerViewModel: PlannerViewModel,
     focusViewModel: FocusTimerViewModel,
     aiViewModel: AiViewModel,
+    isSignedInWithGoogle: Boolean,
+    onSignInWithGoogle: () -> Unit,
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit
 ) {
@@ -106,7 +108,7 @@ fun ShinobiAppShell(
     val profile = uiState.profile
 
     val preset = remember(settings.themePreset) {
-        runCatching { ThemePreset.valueOf(settings.themePreset) }.getOrDefault(ThemePreset.CYBER_SHINOBI)
+        runCatching { ThemePreset.valueOf(settings.themePreset) }.getOrDefault(ThemePreset.NARUTO)
     }
     val appearance = remember(settings.appearanceMode) {
         runCatching { AppearanceMode.valueOf(settings.appearanceMode) }.getOrDefault(AppearanceMode.DARK)
@@ -156,15 +158,14 @@ fun ShinobiAppShell(
             profile != null && !profile.onboardingCompleted -> {
                 OnboardingScreen(
                     profile = profile,
-                    onComplete = { name, univ, dept, year, tz, useEth, showDual, pName, aiPers ->
+                    onComplete = { name, univ, dept, year, tz, showEthTime, pName, aiPers ->
                         plannerViewModel.completeOnboarding(
                             displayName = name,
                             university = univ,
                             department = dept,
                             academicYear = year,
                             timezoneId = tz,
-                            useEthiopianCalendar = useEth,
-                            showDualCalendar = showDual,
+                            showEthiopianTime = showEthTime,
                             themePreset = pName,
                             aiPersonality = aiPers
                         )
@@ -179,6 +180,8 @@ fun ShinobiAppShell(
                     focusViewModel = focusViewModel,
                     aiViewModel = aiViewModel,
                     snackbarHostState = snackbarHostState,
+                    isSignedInWithGoogle = isSignedInWithGoogle,
+                    onSignInWithGoogle = onSignInWithGoogle,
                     onSignOut = onSignOut,
                     onDeleteAccount = onDeleteAccount
                 )
@@ -195,6 +198,8 @@ private fun MainAuthenticatedScaffold(
     focusViewModel: FocusTimerViewModel,
     aiViewModel: AiViewModel,
     snackbarHostState: SnackbarHostState,
+    isSignedInWithGoogle: Boolean,
+    onSignInWithGoogle: () -> Unit,
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit
 ) {
@@ -421,6 +426,8 @@ private fun MainAuthenticatedScaffold(
                             SettingsScreen(
                                 uiState = uiState,
                                 audioState = audioState,
+                                isSignedInWithGoogle = isSignedInWithGoogle,
+                                onSignInWithGoogle = onSignInWithGoogle,
                                 onUpdateProfile = { plannerViewModel.updateProfile(it) },
                                 onUpdateSettings = { plannerViewModel.updateSettings(it) },
                                 onAddWallpaper = { uri, scr -> plannerViewModel.addImportedWallpaper(uri, scr) },
@@ -603,7 +610,7 @@ private fun AppLockGateScreen(
         )
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Unlock Shinobi Planner")
-            .setSubtitle("Verify identity to access your study vault")
+            .setSubtitle("Verify your shinobi seal to unlock")
             .setNegativeButtonText("Use PIN")
             .build()
         prompt.authenticate(info)
@@ -633,8 +640,8 @@ private fun AppLockGateScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Filled.Lock, contentDescription = "Locked", tint = NeonCyan, modifier = Modifier.size(40.dp))
-                Text("SHINOBI VAULT LOCKED", style = MaterialTheme.typography.titleLarge, color = CyberTextPrimary)
+                Icon(Icons.Filled.Lock, contentDescription = "Locked", tint = ChakraOrange, modifier = Modifier.size(40.dp))
+                Text("SHINOBI SEAL LOCKED", style = MaterialTheme.typography.titleLarge, color = CyberTextPrimary)
                 OutlinedTextField(
                     value = entered,
                     onValueChange = {

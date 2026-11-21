@@ -106,7 +106,7 @@ class PlannerViewModel(
         initialValue = PlannerUiState()
     )
 
-    fun initializeSession(firebaseUser: FirebaseUser) {
+    fun initializeSession(firebaseUser: FirebaseUser?) {
         viewModelScope.launch {
             repository.ensureUserInitialized(firebaseUser)
             val existingTracks = repository.observeTracks(currentUserId).first()
@@ -126,7 +126,7 @@ class PlannerViewModel(
     }
 
     private fun applyAudioVolumes(settings: UserSettingsEntity) {
-        val now = EthiopicCalendarUtil.nowZoned(settings.timezoneId)
+        val now = ShinobiTimeUtil.nowZoned(settings.timezoneId)
         val inQuiet = if (settings.quietHoursEnabled) {
             val h = now.hour
             val s = settings.quietStartHour
@@ -242,8 +242,7 @@ class PlannerViewModel(
         department: String,
         academicYear: String,
         timezoneId: String,
-        useEthiopianCalendar: Boolean,
-        showDualCalendar: Boolean,
+        showEthiopianTime: Boolean,
         themePreset: String,
         aiPersonality: String
     ) {
@@ -261,8 +260,7 @@ class PlannerViewModel(
             val s = uiState.value.settings.copy(
                 userId = currentUserId,
                 timezoneId = timezoneId,
-                useEthiopianCalendar = useEthiopianCalendar,
-                showDualCalendar = showDualCalendar,
+                showEthiopianTime = showEthiopianTime,
                 themePreset = themePreset,
                 aiPersonality = aiPersonality
             )
@@ -364,6 +362,10 @@ class PlannerViewModel(
 
     fun triggerSyncNow(context: Context) {
         viewModelScope.launch {
+            if (currentUserId == ShinobiRepository.LOCAL_GUEST_UID) {
+                _statusMessage.value = "Local mode active — sign in with Google to enable cloud sync"
+                return@launch
+            }
             _isSyncing.value = true
             val res = repository.syncPendingToCloud(currentUserId)
             CloudSyncWorker.triggerImmediateSync(context)
@@ -394,7 +396,7 @@ class PlannerViewModel(
                     uiState.value.sessions
                 )
             }
-            _statusMessage.value = "PDF Intelligence Report exported"
+            _statusMessage.value = "PDF Training Report exported"
             true
         }.getOrElse {
             _statusMessage.value = "Export failed: ${it.localizedMessage}"
@@ -423,6 +425,10 @@ class PlannerViewModel(
         _statusMessage.value = null
     }
 
+    fun postStatusMessage(message: String) {
+        _statusMessage.value = message
+    }
+
     fun reportFocusCompletion(xp: Int, rankUpTitle: String?) {
         if (rankUpTitle != null) {
             audioEngine.playSfx(ShinobiSfx.RANK_UP)
@@ -434,7 +440,7 @@ class PlannerViewModel(
     }
 
     fun todayIso(): String =
-        EthiopicCalendarUtil.nowZoned(uiState.value.settings.timezoneId)
+        ShinobiTimeUtil.nowZoned(uiState.value.settings.timezoneId)
             .toLocalDate()
             .format(DateTimeFormatter.ISO_LOCAL_DATE)
 

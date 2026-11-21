@@ -32,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.core.common.ShinobiTimeUtil
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.SubjectEntity
 import com.example.data.local.SubtaskEntity
@@ -77,7 +77,7 @@ fun ScheduleScreen(
     val visuals = LocalShinobiVisuals.current
     val settings = uiState.settings
     val today = remember(settings.timezoneId) {
-        EthiopicCalendarUtil.nowZoned(settings.timezoneId).toLocalDate()
+        ShinobiTimeUtil.nowZoned(settings.timezoneId).toLocalDate()
     }
     var selectedDate by remember { mutableStateOf(today) }
     val selectedIso = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -140,11 +140,7 @@ fun ScheduleScreen(
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
-                            text = EthiopicCalendarUtil.formatDualDateHeader(
-                                date = selectedDate,
-                                useEthiopian = settings.useEthiopianCalendar,
-                                showDual = settings.showDualCalendar
-                            ),
+                            text = ShinobiTimeUtil.formatDateHeader(selectedDate),
                             style = MaterialTheme.typography.bodySmall,
                             color = visuals.primaryAccent
                         )
@@ -260,8 +256,8 @@ fun ScheduleScreen(
                                         },
                                         label = {
                                             Text(
-                                                "${EthiopicCalendarUtil.formatTime(slot.startMinutes, settings.use24HourClock)} - ${
-                                                    EthiopicCalendarUtil.formatTime(slot.endMinutes, settings.use24HourClock)
+                                                "${ShinobiTimeUtil.formatTime(slot.startMinutes, settings.use24HourClock)} - ${
+                                                    ShinobiTimeUtil.formatTime(slot.endMinutes, settings.use24HourClock)
                                                 }"
                                             )
                                         }
@@ -565,8 +561,8 @@ private fun SwipeableTaskRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    val timeSpan = "${EthiopicCalendarUtil.formatTime(task.startTimeMinutes, use24HourClock)} - ${
-                        EthiopicCalendarUtil.formatTime(task.endTimeMinutes, use24HourClock)
+                    val timeSpan = "${ShinobiTimeUtil.formatTime(task.startTimeMinutes, use24HourClock)} - ${
+                        ShinobiTimeUtil.formatTime(task.endTimeMinutes, use24HourClock)
                     }"
                     Text(
                         text = buildString {

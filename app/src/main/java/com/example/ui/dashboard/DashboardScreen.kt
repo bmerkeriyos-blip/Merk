@@ -38,7 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.R
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.common.RankProgression
 import com.example.data.local.PlannerTaskEntity
 import com.example.ui.components.ChakraProgressRing
@@ -80,7 +80,7 @@ fun DashboardScreen(
     val visuals = LocalShinobiVisuals.current
     val settings = uiState.settings
     val profile = uiState.profile
-    val nowZoned = remember(settings.timezoneId) { EthiopicCalendarUtil.nowZoned(settings.timezoneId) }
+    val nowZoned = remember(settings.timezoneId) { ShinobiTimeUtil.nowZoned(settings.timezoneId) }
     val todayDate = nowZoned.toLocalDate()
     val todayIso = todayDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
@@ -161,16 +161,15 @@ fun DashboardScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = EthiopicCalendarUtil.formatDualDateHeader(
-                            date = todayDate,
-                            useEthiopian = settings.useEthiopianCalendar,
-                            showDual = settings.showDualCalendar
-                        ),
+                        text = ShinobiTimeUtil.formatDateHeader(todayDate),
                         style = MaterialTheme.typography.bodySmall,
                         color = visuals.primaryAccent
                     )
+                    val ethTimeSuffix = if (settings.showEthiopianTime) {
+                        "  •  ${ShinobiTimeUtil.formatEthiopianClock(nowZoned.toLocalTime())}"
+                    } else ""
                     Text(
-                        text = "Time: ${EthiopicCalendarUtil.formatTime(nowMinutes, settings.use24HourClock)}  •  ${EthiopicCalendarUtil.formatEthiopianClock(nowZoned.toLocalTime())}",
+                        text = "Time: ${ShinobiTimeUtil.formatTime(nowMinutes, settings.use24HourClock)}$ethTimeSuffix",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -300,7 +299,7 @@ fun DashboardScreen(
                     item {
                         ActionChipPill(
                             icon = Icons.Filled.AutoAwesome,
-                            label = "Ask Mentor AI",
+                            label = "Ask Sensei AI",
                             tint = ArcaneViolet,
                             tag = "quick_ask_ai",
                             onClick = onOpenAiMentor
@@ -349,9 +348,9 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "${nextClass.subjectName} • ${nextClass.dateIso} • ${
-                                EthiopicCalendarUtil.formatTime(nextClass.startTimeMinutes, settings.use24HourClock)
+                                ShinobiTimeUtil.formatTime(nextClass.startTimeMinutes, settings.use24HourClock)
                             } - ${
-                                EthiopicCalendarUtil.formatTime(nextClass.endTimeMinutes, settings.use24HourClock)
+                                ShinobiTimeUtil.formatTime(nextClass.endTimeMinutes, settings.use24HourClock)
                             }" + if (nextClass.location.isNotBlank()) " • ${nextClass.location}" else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -420,7 +419,7 @@ fun DashboardScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "NINJA MENTOR DAILY BRIEFING",
+                            text = "SHINOBI SENSEI DAILY BRIEFING",
                             style = MaterialTheme.typography.labelLarge,
                             color = ArcaneViolet,
                             modifier = Modifier.weight(1f)
@@ -495,7 +494,7 @@ fun DashboardScreen(
                                 )
                                 Text(
                                     text = "${task.subjectName} • ${
-                                        EthiopicCalendarUtil.formatTime(task.startTimeMinutes, settings.use24HourClock)
+                                        ShinobiTimeUtil.formatTime(task.startTimeMinutes, settings.use24HourClock)
                                     } (+${task.xpReward} XP)",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant

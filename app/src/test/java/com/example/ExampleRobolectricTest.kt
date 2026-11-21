@@ -14,7 +14,10 @@ import com.example.data.local.ShinobiDatabase
 import com.example.data.local.SubtaskEntity
 import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
+import androidx.compose.ui.test.performClick
+import com.example.core.media.AudioPlaybackState
 import com.example.ui.dashboard.DashboardScreen
+import com.example.ui.settings.SettingsScreen
 import com.example.ui.theme.ShinobiPlannerTheme
 import com.example.viewmodel.FocusTimerUiState
 import com.example.viewmodel.PlannerUiState
@@ -141,5 +144,54 @@ class ExampleRobolectricTest {
         composeRule.onNodeWithText("5d Streak").assertIsDisplayed()
         composeRule.onNodeWithTag("quick_new_mission").assertIsDisplayed()
         composeRule.onNodeWithTag("quick_focus_dojo").assertIsDisplayed()
+    }
+
+    @Test
+    fun `settings screen shows optional google sign in when skipped`() {
+        var signInClicked = false
+        val guestState = PlannerUiState(
+            profile = UserProfileEntity(
+                uid = "local_shinobi",
+                displayName = "Shinobi Scholar",
+                username = "local_shinobi",
+                email = ""
+            ),
+            settings = UserSettingsEntity(userId = "local_shinobi", aiEnabled = true)
+        )
+
+        composeRule.setContent {
+            ShinobiPlannerTheme {
+                SettingsScreen(
+                    uiState = guestState,
+                    audioState = AudioPlaybackState(),
+                    isSignedInWithGoogle = false,
+                    onSignInWithGoogle = { signInClicked = true },
+                    onUpdateProfile = {},
+                    onUpdateSettings = {},
+                    onAddWallpaper = { _, _ -> },
+                    onUpdateWallpaperTuning = { _, _, _, _, _ -> },
+                    onDeleteWallpaper = {},
+                    onResetWallpapers = {},
+                    onAddTrack = { _, _, _ -> },
+                    onDeleteTrack = {},
+                    onPlayTrackAt = {},
+                    onTogglePlayPauseMusic = {},
+                    onNextTrack = {},
+                    onPreviousTrack = {},
+                    onToggleShuffle = {},
+                    onCycleRepeat = {},
+                    onSpeakMotivation = {},
+                    onTriggerSync = {},
+                    onExportJson = { "{}" },
+                    onExportCsv = { "" },
+                    onWritePdf = { true },
+                    onSignOut = {},
+                    onDeleteAccountData = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings_google_sign_in_button").assertIsDisplayed().performClick()
+        assertTrue(signInClicked)
     }
 }

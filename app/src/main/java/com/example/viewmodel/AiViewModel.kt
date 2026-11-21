@@ -9,7 +9,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.core.ai.*
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.common.MissionRank
 import com.example.core.common.TaskCategory
 import com.example.data.local.*
@@ -161,7 +161,7 @@ class AiViewModel(
             _chatState.value = AiChatUiState.Loading
 
             try {
-                val todayIso = EthiopicCalendarUtil.nowZoned(timezoneId)
+                val todayIso = ShinobiTimeUtil.nowZoned(timezoneId)
                     .toLocalDate()
                     .format(DateTimeFormatter.ISO_LOCAL_DATE)
 
@@ -234,7 +234,7 @@ class AiViewModel(
                     location = command.location
                 )
                 repository.saveTask(newTask)
-                "Created mission '${newTask.title}' on ${newTask.dateIso} at ${EthiopicCalendarUtil.formatTime(newTask.startTimeMinutes, false)}"
+                "Created mission '${newTask.title}' on ${newTask.dateIso} at ${ShinobiTimeUtil.formatTime(newTask.startTimeMinutes, false)}"
             }
             is ParsedAiCommand.RescheduleTask -> {
                 val match = tasks.firstOrNull {
@@ -273,7 +273,7 @@ class AiViewModel(
                 val slots = repository.findFreeTimeSlots(dayTasks)
                 if (slots.isEmpty()) "No free blocks >=30m found on ${command.dateIso}"
                 else "Free slots on ${command.dateIso}: " + slots.take(4).joinToString {
-                    "${EthiopicCalendarUtil.formatTime(it.startMinutes, false)}-${EthiopicCalendarUtil.formatTime(it.endMinutes, false)}"
+                    "${ShinobiTimeUtil.formatTime(it.startMinutes, false)}-${ShinobiTimeUtil.formatTime(it.endMinutes, false)}"
                 }
             }
             ParsedAiCommand.SummarizeWeek, ParsedAiCommand.GenerateStudyPlan, ParsedAiCommand.ChatOnly -> ""
@@ -299,7 +299,7 @@ class AiViewModel(
     ): String {
         val upcoming = tasks.filter { it.dateIso >= todayIso && !it.completed }.take(12)
         val lines = upcoming.joinToString("\n") {
-            "- ${it.dateIso} ${EthiopicCalendarUtil.formatTime(it.startTimeMinutes, true)}-${EthiopicCalendarUtil.formatTime(it.endTimeMinutes, true)}: ${it.title} [${it.subjectName}, ${it.category}, Rank ${it.missionRank}]"
+            "- ${it.dateIso} ${ShinobiTimeUtil.formatTime(it.startTimeMinutes, true)}-${ShinobiTimeUtil.formatTime(it.endTimeMinutes, true)}: ${it.title} [${it.subjectName}, ${it.category}, Rank ${it.missionRank}]"
         }.ifBlank { "No upcoming open missions." }
         return buildString {
             appendLine("Today: $todayIso")
@@ -312,7 +312,7 @@ class AiViewModel(
     fun refreshDailySuggestion(tasks: List<PlannerTaskEntity>, timezoneId: String) {
         viewModelScope.launch {
             try {
-                val todayIso = EthiopicCalendarUtil.nowZoned(timezoneId)
+                val todayIso = ShinobiTimeUtil.nowZoned(timezoneId)
                     .toLocalDate()
                     .format(DateTimeFormatter.ISO_LOCAL_DATE)
                 _dailySuggestion.value = aiService.generateQuickSuggestion(tasks, todayIso)
@@ -343,7 +343,7 @@ class AiViewModel(
                     _scannerState.value = ScannerUiState.Error("Could not decode image or PDF file.")
                     return@launch
                 }
-                val todayIso = EthiopicCalendarUtil.nowZoned(timezoneId)
+                val todayIso = ShinobiTimeUtil.nowZoned(timezoneId)
                     .toLocalDate()
                     .format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val extracted = aiService.scanTimetableImages(bitmaps, todayIso, accurateMode)

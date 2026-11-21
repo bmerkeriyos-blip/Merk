@@ -14,12 +14,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 enum class ThemePreset(val label: String, val subtitle: String) {
-    CYBER_SHINOBI("Cyber Shinobi", "Neon cyan & chakra orange HUD"),
-    NARUTO("Chakra Mode", "Vibrant orange & anime glow"),
-    ACADEMIC("Academic Focus", "Clean minimal study interface"),
-    AMOLED("AMOLED Stealth", "Pure black battery-conscious"),
-    MINIMAL("Minimal Zen", "Calm cards, zero particles"),
-    CUSTOM("Custom Shinobi", "Full user control")
+    NARUTO("Hidden Leaf Chakra", "Fiery orange & golden anime warmth"),
+    CYBER_SHINOBI("Midnight ANBU", "Moonlit teal & chakra orange night"),
+    ACADEMIC("Academy Scroll", "Clean parchment-style study view"),
+    AMOLED("Shadow Clone Black", "Pure black battery-conscious"),
+    MINIMAL("Sage Zen", "Calm cards, zero particles"),
+    CUSTOM("Custom Chakra", "Full user chakra color control")
 }
 
 enum class AppearanceMode(val label: String) {
@@ -31,14 +31,14 @@ enum class AppearanceMode(val label: String) {
 
 @Immutable
 data class ShinobiVisualConfig(
-    val preset: ThemePreset = ThemePreset.CYBER_SHINOBI,
+    val preset: ThemePreset = ThemePreset.NARUTO,
     val appearanceMode: AppearanceMode = AppearanceMode.DARK,
-    val primaryAccent: Color = NeonCyan,
-    val secondaryAccent: Color = ChakraOrange,
+    val primaryAccent: Color = ChakraOrange,
+    val secondaryAccent: Color = GoldRankS,
     val tertiaryAccent: Color = ArcaneViolet,
     val glassmorphismEnabled: Boolean = true,
     val glowIntensity: Float = 0.8f,
-    val showScanlines: Boolean = true,
+    val showScanlines: Boolean = false,
     val showParticles: Boolean = true,
     val animationsEnabled: Boolean = true,
     val reduceMotion: Boolean = false,
@@ -56,19 +56,19 @@ val ShinobiShapes = Shapes(
 )
 
 fun resolveAccentColor(key: String): Color = when (key.uppercase()) {
-    "ORANGE" -> ChakraOrange
+    "CYAN" -> NeonCyan
     "VIOLET" -> ArcaneViolet
     "EMERALD" -> JadeEmerald
     "GOLD" -> GoldRankS
     "CRIMSON" -> CrimsonAlert
-    else -> NeonCyan
+    else -> ChakraOrange
 }
 
 @Composable
 fun ShinobiPlannerTheme(
-    preset: ThemePreset = ThemePreset.CYBER_SHINOBI,
+    preset: ThemePreset = ThemePreset.NARUTO,
     appearanceMode: AppearanceMode = AppearanceMode.DARK,
-    accentKey: String = "CYAN",
+    accentKey: String = "ORANGE",
     glassmorphism: Boolean = true,
     glowIntensity: Float = 0.8f,
     animationsEnabled: Boolean = true,
@@ -87,15 +87,17 @@ fun ShinobiPlannerTheme(
 
     val primaryAccent = when (preset) {
         ThemePreset.NARUTO -> ChakraOrange
+        ThemePreset.CYBER_SHINOBI -> NeonCyan
         ThemePreset.ACADEMIC -> if (useDark) Color(0xFF60A5FA) else AcademicPrimary
         ThemePreset.MINIMAL -> if (useDark) Color(0xFF94A3B8) else Color(0xFF334155)
         ThemePreset.CUSTOM -> resolveAccentColor(accentKey)
-        else -> NeonCyan
+        ThemePreset.AMOLED -> ChakraOrange
     }
     val secondaryAccent = when (preset) {
         ThemePreset.NARUTO -> GoldRankS
         ThemePreset.ACADEMIC -> if (useDark) Color(0xFF38BDF8) else AcademicSecondary
         ThemePreset.MINIMAL -> if (useDark) Color(0xFF64748B) else Color(0xFF475569)
+        ThemePreset.AMOLED -> GoldRankS
         else -> ChakraOrange
     }
 
@@ -153,8 +155,8 @@ fun ShinobiPlannerTheme(
         tertiaryAccent = ArcaneViolet,
         glassmorphismEnabled = glassmorphism && preset != ThemePreset.ACADEMIC && preset != ThemePreset.MINIMAL,
         glowIntensity = if (preset == ThemePreset.MINIMAL || preset == ThemePreset.ACADEMIC || batterySaver) 0.15f else glowIntensity,
-        showScanlines = preset == ThemePreset.CYBER_SHINOBI && !batterySaver && !reduceMotion,
-        showParticles = (preset == ThemePreset.CYBER_SHINOBI || preset == ThemePreset.NARUTO) && effectiveMotion,
+        showScanlines = false,
+        showParticles = (preset == ThemePreset.NARUTO || preset == ThemePreset.CYBER_SHINOBI) && effectiveMotion,
         animationsEnabled = effectiveMotion,
         reduceMotion = reduceMotion,
         batterySaverMode = batterySaver

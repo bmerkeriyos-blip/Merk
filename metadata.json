@@ -1,6 +1,6 @@
 {
   "name": "Shinobi Planner",
-  "description": "A cyber-ninja university study planner, mission tracker, focus timer, and AI mentor.",
+  "description": "A Naruto-inspired anime shinobi university study planner, mission scroll, focus dojo timer, and AI sensei.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

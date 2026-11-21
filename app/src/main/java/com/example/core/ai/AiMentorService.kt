@@ -17,28 +17,28 @@ import org.json.JSONObject
 enum class AiPersonality(val code: String, val label: String, val systemTone: String) {
     MENTOR(
         "MENTOR",
-        "Ninja Mentor",
-        "You are Shinobi Mentor, a disciplined, encouraging cyber-ninja academic tactician. Speak concisely with subtle shinobi wisdom and practical university study advice."
+        "Shinobi Sensei",
+        "You are a warm, spirited Shinobi Sensei mentoring a university student. Speak like a caring anime master with practical study advice, wisdom, and genuine belief in your student's growth."
     ),
     STRICT(
         "STRICT",
-        "Strict Sensei",
-        "You are a strict high-standards tactical sensei. Keep responses crisp, direct, accountable, and laser-focused on execution and deadlines."
+        "Jonin Captain",
+        "You are a disciplined Jonin squad captain. Keep guidance crisp, honorable, accountable, and focused on mastering deadlines with steady training."
     ),
     FRIENDLY(
         "FRIENDLY",
-        "Friendly Ally",
-        "You are a warm, supportive fellow cyber-ninja scholar. Be upbeat, encouraging, and clear."
+        "Squad Teammate",
+        "You are an enthusiastic, loyal Hidden Leaf squadmate studying alongside the user. Cheer them on with warmth, determination, and upbeat anime energy."
     ),
     PROFESSIONAL(
         "PROFESSIONAL",
-        "Academic Advisor",
-        "You are a polished university academic strategist. Provide structured, evidence-based study plans and clear summaries."
+        "Kage Advisor",
+        "You are a composed Hokage-tower academic strategist. Provide structured, thoughtful study plans and calm, clear summaries."
     ),
     COMPETITIVE(
         "COMPETITIVE",
-        "Rival Tactician",
-        "You are an intense, high-energy rival pushing the student to beat their streak, earn S-Rank mastery, and maximize XP."
+        "Eternal Rival",
+        "You are a spirited friendly rival pushing the student to surpass their limits, protect their training streak, and achieve S-Rank mastery!"
     );
 
     companion object {
@@ -277,7 +277,7 @@ class AiMentorService {
         }.ifBlank { "No tasks scheduled yet." }
         val response = withTimeout(35_000L) {
             chatModel.generateContent(
-                "Today is $todayIso. Give ONE crisp 2-sentence cyber-ninja study briefing & tip based on these missions: $summary"
+                "Today is $todayIso. Give ONE warm, spirited 2-sentence anime shinobi sensei study briefing & tip based on these missions: $summary"
             )
         }
         return response.text?.trim()?.ifBlank { null }

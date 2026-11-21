@@ -397,7 +397,7 @@ private fun TimeStepperCard(
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = EthiopicCalendarUtil.formatTime(minutes, use24Hour),
+                text = ShinobiTimeUtil.formatTime(minutes, use24Hour),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )

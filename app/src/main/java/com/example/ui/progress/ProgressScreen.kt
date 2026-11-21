@@ -1,6 +1,7 @@
 package com.example.ui.progress
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,10 +22,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.R
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.common.MissionRank
 import com.example.core.common.RankProgression
 import com.example.core.common.TaskCategory
@@ -39,12 +43,12 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 private val RANK_LADDER = listOf(
-    1 to "Academy Initiate",
-    5 to "Shadow Scholar",
-    10 to "Scroll Tactician",
-    16 to "Chakra Vanguard",
-    25 to "Cyber Jonin",
-    35 to "Grand Cyber Kage"
+    1 to "Academy Student",
+    5 to "Genin Scholar",
+    10 to "Chunin Tactician",
+    16 to "Tokubetsu Jonin",
+    25 to "Jonin Master",
+    35 to "Grand Kage"
 )
 
 @Composable
@@ -56,7 +60,7 @@ fun ProgressScreen(
     val profile = uiState.profile
     val rankInfo = remember(profile?.xp) { RankProgression.computeLevelInfo(profile?.xp ?: 0) }
     val today = remember(uiState.settings.timezoneId) {
-        EthiopicCalendarUtil.nowZoned(uiState.settings.timezoneId).toLocalDate()
+        ShinobiTimeUtil.nowZoned(uiState.settings.timezoneId).toLocalDate()
     }
     val todayIso = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
@@ -105,9 +109,19 @@ fun ProgressScreen(
     ) {
         item {
             Text(
-                text = "SHINOBI INTELLIGENCE & PROGRESS",
+                text = "SHINOBI PATH & PROGRESS",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Image(
+                painter = painterResource(id = R.drawable.img_scroll_banner),
+                contentDescription = "Shinobi Training Scroll",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+                contentScale = ContentScale.Crop
             )
         }
 
@@ -167,7 +181,7 @@ fun ProgressScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Timeline, contentDescription = null, tint = visuals.primaryAccent)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("WEEKLY INTELLIGENCE REPORT", style = MaterialTheme.typography.labelLarge, color = visuals.primaryAccent)
+                    Text("WEEKLY TRAINING REPORT", style = MaterialTheme.typography.labelLarge, color = visuals.primaryAccent)
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

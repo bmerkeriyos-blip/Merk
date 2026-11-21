@@ -160,7 +160,7 @@ class ShinobiAudioEngine(private val context: Context) {
     suspend fun ensureBuiltInTracks(userId: String): List<MusicTrackEntity> = withContext(Dispatchers.IO) {
         val dir = File(context.filesDir, "shinobi_audio").apply { mkdirs() }
         val specs = listOf(
-            Triple("synth_dojo_$userId", "Cyber Dojo Meditation (Original)", 220.0),
+            Triple("synth_dojo_$userId", "Hidden Village Dawn (Original)", 220.0),
             Triple("synth_rain_$userId", "Midnight Hidden Village (Original)", 196.0),
             Triple("synth_pulse_$userId", "Chakra Flow Focus (Original)", 246.94)
         )

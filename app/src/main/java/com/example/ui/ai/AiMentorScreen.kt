@@ -77,7 +77,7 @@ fun AiMentorScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("SHINOBI MENTOR AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("SHINOBI SENSEI AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(personality.label, style = MaterialTheme.typography.labelSmall, color = visuals.primaryAccent)
                     }
                 },
@@ -138,11 +138,11 @@ fun AiMentorScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = ArcaneViolet)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Ninja Mentor Online", style = MaterialTheme.typography.titleSmall, color = ArcaneViolet)
+                                Text("Shinobi Sensei Ready", style = MaterialTheme.typography.titleSmall, color = ArcaneViolet)
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Ask me to schedule missions, find free study slots, build revision routines, or analyze your workload.",
+                                text = "Ask me to schedule missions, find free study slots, build revision routines, or plan your training!",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -161,7 +161,7 @@ fun AiMentorScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Text("Channeling chakra intelligence...", style = MaterialTheme.typography.bodySmall)
+                            Text("Sensei is writing on your scroll...", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -216,7 +216,7 @@ fun AiMentorScreen(
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    placeholder = { Text("Command your Ninja Mentor...") },
+                    placeholder = { Text("Ask your Shinobi Sensei...") },
                     maxLines = 3,
                     modifier = Modifier.weight(1f).testTag("ai_chat_input")
                 )

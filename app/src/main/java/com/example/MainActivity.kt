@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -20,6 +21,7 @@ import com.example.data.local.ShinobiDatabase
 import com.example.data.remote.FirestoreSyncRepository
 import com.example.data.repository.ShinobiRepository
 import com.example.ui.auth.AuthScreen
+import com.example.ui.auth.onGoogleSignInClicked
 import com.example.ui.auth.signOutUser
 import com.example.ui.navigation.ShinobiAppShell
 import com.example.ui.theme.ShinobiPlannerTheme
@@ -28,9 +30,7 @@ import com.example.viewmodel.FocusTimerViewModel
 import com.example.viewmodel.PlannerViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
-import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
 
@@ -63,8 +63,14 @@ class MainActivity : FragmentActivity() {
 private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val authPrefs = remember(context) {
+        context.applicationContext.getSharedPreferences("shinobi_auth_prefs", Context.MODE_PRIVATE)
+    }
 
     var currentUser by remember { mutableStateOf(Firebase.auth.currentUser) }
+    var skippedSignIn by remember {
+        mutableStateOf(authPrefs.getBoolean("skipped_sign_in", false))
+    }
 
     DisposableEffect(Unit) {
         val listener = FirebaseAuth.AuthStateListener { auth ->
@@ -75,17 +81,24 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
     }
 
     val activeUser = currentUser
-    if (activeUser == null) {
+    if (activeUser == null && !skippedSignIn) {
         ShinobiPlannerTheme {
             AuthScreen(
                 onAuthSuccess = {
+                    authPrefs.edit().putBoolean("skipped_sign_in", false).commit()
+                    skippedSignIn = false
                     currentUser = Firebase.auth.currentUser
+                },
+                onSkipForNow = {
+                    authPrefs.edit().putBoolean("skipped_sign_in", true).commit()
+                    skippedSignIn = true
                 }
             )
         }
     } else {
-        key(activeUser.uid) {
-            val uid = activeUser.uid
+        val isSignedInWithGoogle = activeUser != null
+        val uid = activeUser?.uid ?: ShinobiRepository.LOCAL_GUEST_UID
+        key(uid) {
             val db = remember(context) { ShinobiDatabase.getInstance(context.applicationContext) }
             val remote = remember(context) { FirestoreSyncRepository(context.applicationContext) }
             val repository = remember(uid) { ShinobiRepository(context.applicationContext, db, remote) }
@@ -121,9 +134,11 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
                 }
             )
 
-            LaunchedEffect(uid) {
+            LaunchedEffect(uid, isSignedInWithGoogle) {
                 plannerViewModel.initializeSession(activeUser)
-                CloudSyncWorker.schedulePeriodicSync(context.applicationContext)
+                if (isSignedInWithGoogle) {
+                    CloudSyncWorker.schedulePeriodicSync(context.applicationContext)
+                }
                 DailyBriefingWorker.schedule(context.applicationContext)
             }
 
@@ -133,12 +148,32 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
                 plannerViewModel = plannerViewModel,
                 focusViewModel = focusViewModel,
                 aiViewModel = aiViewModel,
+                isSignedInWithGoogle = isSignedInWithGoogle,
+                onSignInWithGoogle = {
+                    onGoogleSignInClicked(
+                        context = context,
+                        credentialManager = credentialManager,
+                        onAuthSuccess = {
+                            authPrefs.edit().putBoolean("skipped_sign_in", false).commit()
+                            skippedSignIn = false
+                            currentUser = Firebase.auth.currentUser
+                        },
+                        onAuthError = { msg ->
+                            plannerViewModel.postStatusMessage(msg)
+                        },
+                        scope = scope
+                    )
+                },
                 onSignOut = {
                     audioEngine.pause()
+                    authPrefs.edit().putBoolean("skipped_sign_in", false).commit()
+                    skippedSignIn = false
                     signOutUser(credentialManager, scope)
                 },
                 onDeleteAccount = {
                     audioEngine.pause()
+                    authPrefs.edit().putBoolean("skipped_sign_in", false).commit()
+                    skippedSignIn = false
                     signOutUser(credentialManager, scope)
                 }
             )

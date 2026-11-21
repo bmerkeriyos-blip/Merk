@@ -90,12 +90,12 @@ object RankProgression {
     }
 
     fun titleForLevel(level: Int): String = when {
-        level >= 35 -> "Grand Cyber Kage"
-        level >= 25 -> "Cyber Jonin"
-        level >= 16 -> "Chakra Vanguard"
-        level >= 10 -> "Scroll Tactician"
-        level >= 5 -> "Shadow Scholar"
-        else -> "Academy Initiate"
+        level >= 35 -> "Grand Kage"
+        level >= 25 -> "Jonin Master"
+        level >= 16 -> "Tokubetsu Jonin"
+        level >= 10 -> "Chunin Tactician"
+        level >= 5 -> "Genin Scholar"
+        else -> "Academy Student"
     }
 
     fun streakBonusXp(streakDays: Int): Int = (streakDays.coerceAtMost(14)) * 10

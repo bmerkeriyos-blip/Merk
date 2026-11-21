@@ -8,10 +8,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.R
 
-val OrbitronFontFamily = FontFamily(
-    Font(R.font.orbitron, FontWeight.Normal),
-    Font(R.font.orbitron, FontWeight.Medium),
-    Font(R.font.orbitron, FontWeight.Bold)
+val OutfitFontFamily = FontFamily(
+    Font(R.font.outfit, FontWeight.Normal),
+    Font(R.font.outfit, FontWeight.Medium),
+    Font(R.font.outfit, FontWeight.Bold)
 )
 
 val JakartaSansFontFamily = FontFamily(
@@ -31,25 +31,23 @@ fun buildShinobiTypography(fontScale: Float = 1f): Typography {
     val s = fontScale.coerceIn(0.85f, 1.35f)
     return Typography(
         displaySmall = TextStyle(
-            fontFamily = OrbitronFontFamily,
+            fontFamily = OutfitFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = (28f * s).sp,
             lineHeight = (34f * s).sp,
-            letterSpacing = 0.8.sp
+            letterSpacing = 0.2.sp
         ),
         headlineMedium = TextStyle(
-            fontFamily = OrbitronFontFamily,
+            fontFamily = OutfitFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = (22f * s).sp,
-            lineHeight = (28f * s).sp,
-            letterSpacing = 0.6.sp
+            lineHeight = (28f * s).sp
         ),
         headlineSmall = TextStyle(
-            fontFamily = OrbitronFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = (18f * s).sp,
-            lineHeight = (24f * s).sp,
-            letterSpacing = 0.5.sp
+            fontFamily = OutfitFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = (19f * s).sp,
+            lineHeight = (25f * s).sp
         ),
         titleLarge = TextStyle(
             fontFamily = JakartaSansFontFamily,
@@ -64,11 +62,10 @@ fun buildShinobiTypography(fontScale: Float = 1f): Typography {
             lineHeight = (21f * s).sp
         ),
         titleSmall = TextStyle(
-            fontFamily = OrbitronFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = (12f * s).sp,
-            lineHeight = (16f * s).sp,
-            letterSpacing = 0.8.sp
+            fontFamily = OutfitFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = (13f * s).sp,
+            lineHeight = (18f * s).sp
         ),
         bodyLarge = TextStyle(
             fontFamily = JakartaSansFontFamily,

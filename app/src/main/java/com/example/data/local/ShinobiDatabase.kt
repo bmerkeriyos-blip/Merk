@@ -24,7 +24,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TimetableScanEntity::class,
         UserSettingsEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class ShinobiDatabase : RoomDatabase() {
@@ -45,7 +45,56 @@ abstract class ShinobiDatabase : RoomDatabase() {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Schema baseline v1 -> future v2 migrations go here cleanly without dropping user data.
+                db.execSQL("DROP TABLE IF EXISTS user_settings")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `user_settings` (
+                        `userId` TEXT NOT NULL,
+                        `themePreset` TEXT NOT NULL,
+                        `appearanceMode` TEXT NOT NULL,
+                        `accentColorKey` TEXT NOT NULL,
+                        `glassmorphism` INTEGER NOT NULL,
+                        `glowIntensity` REAL NOT NULL,
+                        `fontScale` REAL NOT NULL,
+                        `animationsEnabled` INTEGER NOT NULL,
+                        `animationSpeed` REAL NOT NULL,
+                        `reduceMotion` INTEGER NOT NULL,
+                        `batterySaverMode` INTEGER NOT NULL,
+                        `hapticsEnabled` INTEGER NOT NULL,
+                        `floatingAiEnabled` INTEGER NOT NULL,
+                        `floatingAiDisableInFocus` INTEGER NOT NULL,
+                        `floatingAiHideWhileTyping` INTEGER NOT NULL,
+                        `aiEnabled` INTEGER NOT NULL,
+                        `aiPersonality` TEXT NOT NULL,
+                        `autoSaveScans` INTEGER NOT NULL,
+                        `timezoneId` TEXT NOT NULL,
+                        `use24HourClock` INTEGER NOT NULL,
+                        `showEthiopianTime` INTEGER NOT NULL,
+                        `weekStartDay` TEXT NOT NULL,
+                        `quietHoursEnabled` INTEGER NOT NULL,
+                        `quietStartHour` INTEGER NOT NULL,
+                        `quietEndHour` INTEGER NOT NULL,
+                        `soundEnabled` INTEGER NOT NULL,
+                        `vibrationEnabled` INTEGER NOT NULL,
+                        `musicVolume` REAL NOT NULL,
+                        `sfxVolume` REAL NOT NULL,
+                        `motivationalVolume` REAL NOT NULL,
+                        `musicOnOpen` INTEGER NOT NULL,
+                        `musicDuringFocus` INTEGER NOT NULL,
+                        `musicOnComplete` INTEGER NOT NULL,
+                        `wallpaperSlideshowEnabled` INTEGER NOT NULL,
+                        `wallpaperSlideshowIntervalSec` INTEGER NOT NULL,
+                        `wallpaperRandomOrder` INTEGER NOT NULL,
+                        `offlineModeOnly` INTEGER NOT NULL,
+                        `appLockEnabled` INTEGER NOT NULL,
+                        `appLockPin` TEXT NOT NULL,
+                        `biometricsEnabled` INTEGER NOT NULL,
+                        `dashboardWidgetsCsv` TEXT NOT NULL,
+                        `updatedAtEpochMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`userId`)
+                    )
+                    """.trimIndent()
+                )
             }
         }
 

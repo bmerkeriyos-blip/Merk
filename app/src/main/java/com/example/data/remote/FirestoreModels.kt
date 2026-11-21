@@ -20,7 +20,7 @@ data class UserProfileCloud(
     val academicYear: String = "",
     val xp: Long = 0L,
     val level: Long = 1L,
-    val ninjaTitle: String = "Academy Initiate",
+    val ninjaTitle: String = "Academy Student",
     val currentStreak: Long = 0L,
     val longestStreak: Long = 0L,
     val onboardingCompleted: Boolean = false,

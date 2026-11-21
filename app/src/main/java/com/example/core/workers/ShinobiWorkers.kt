@@ -2,7 +2,7 @@ package com.example.core.workers
 
 import android.content.Context
 import androidx.work.*
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.notifications.ShinobiNotificationManager
 import com.example.data.local.ShinobiDatabase
 import com.example.data.remote.FirestoreSyncRepository
@@ -67,11 +67,12 @@ class DailyBriefingWorker(
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val uid = Firebase.auth.currentUser?.uid ?: return Result.success()
         val db = ShinobiDatabase.getInstance(applicationContext)
+        val uid = Firebase.auth.currentUser?.uid ?: ShinobiRepository.LOCAL_GUEST_UID
+        if (db.userProfileDao().getProfileOnce(uid) == null) return Result.success()
         val settings = db.userSettingsDao().getSettingsOnce(uid)
-        val tz = settings?.timezoneId ?: EthiopicCalendarUtil.DEFAULT_TIMEZONE_ID
-        val now = EthiopicCalendarUtil.nowZoned(tz)
+        val tz = settings?.timezoneId ?: ShinobiTimeUtil.DEFAULT_TIMEZONE_ID
+        val now = ShinobiTimeUtil.nowZoned(tz)
         if (settings?.quietHoursEnabled == true) {
             val h = now.hour
             val s = settings.quietStartHour
@@ -90,7 +91,7 @@ class DailyBriefingWorker(
             todayOpen > 0 && streak > 0 ->
                 "You have $todayOpen active missions today. Keep your $streak-day chakra streak alive!"
             todayOpen > 0 ->
-                "You have $todayOpen scheduled missions today. Open Shinobi HUD to begin."
+                "You have $todayOpen scheduled missions today. Open Shinobi Dojo to begin."
             else ->
                 "Your schedule is clear today. Launch a Focus Dojo session to gain XP!"
         }

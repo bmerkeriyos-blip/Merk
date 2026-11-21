@@ -26,7 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.example.core.ai.ScannedTimetableEvent
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.core.common.ShinobiTimeUtil
 import com.example.data.local.TimetableScanEntity
 import com.example.ui.components.HoloCard
 import com.example.ui.components.RankBadgeChip
@@ -282,9 +282,9 @@ fun TimetableScannerScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "${ev.dayOfWeek} • ${
-                                    EthiopicCalendarUtil.formatTime(ev.startTimeMinutes, use24HourClock)
+                                    ShinobiTimeUtil.formatTime(ev.startTimeMinutes, use24HourClock)
                                 } - ${
-                                    EthiopicCalendarUtil.formatTime(ev.endTimeMinutes, use24HourClock)
+                                    ShinobiTimeUtil.formatTime(ev.endTimeMinutes, use24HourClock)
                                 } • Room: ${ev.location.ifBlank { "TBA" }}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant

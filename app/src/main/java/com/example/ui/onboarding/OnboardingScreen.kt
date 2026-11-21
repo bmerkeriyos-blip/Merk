@@ -34,7 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.core.ai.AiPersonality
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.core.common.ShinobiTimeUtil
 import com.example.data.local.UserProfileEntity
 import com.example.ui.components.HoloCard
 import com.example.ui.theme.*
@@ -48,8 +48,7 @@ fun OnboardingScreen(
         department: String,
         academicYear: String,
         timezoneId: String,
-        useEthiopianCalendar: Boolean,
-        showDualCalendar: Boolean,
+        showEthiopianTime: Boolean,
         themePreset: String,
         aiPersonality: String
     ) -> Unit
@@ -59,10 +58,9 @@ fun OnboardingScreen(
     var university by remember { mutableStateOf(profile?.university.orEmpty()) }
     var department by remember { mutableStateOf(profile?.department.orEmpty()) }
     var academicYear by remember { mutableStateOf(profile?.academicYear?.ifBlank { "Year 2" } ?: "Year 2") }
-    var timezoneId by remember { mutableStateOf(EthiopicCalendarUtil.DEFAULT_TIMEZONE_ID) }
-    var useEthiopian by remember { mutableStateOf(false) }
-    var showDualCalendar by remember { mutableStateOf(true) }
-    var selectedPreset by remember { mutableStateOf(ThemePreset.CYBER_SHINOBI.name) }
+    var timezoneId by remember { mutableStateOf(ShinobiTimeUtil.DEFAULT_TIMEZONE_ID) }
+    var showEthiopianTime by remember { mutableStateOf(true) }
+    var selectedPreset by remember { mutableStateOf(ThemePreset.NARUTO.name) }
     var selectedPersonality by remember { mutableStateOf(AiPersonality.MENTOR.code) }
     var notifPermissionResult by remember { mutableStateOf<String?>(null) }
 
@@ -96,7 +94,7 @@ fun OnboardingScreen(
                 Text(
                     text = "SHINOBI SETUP  ${step + 1}/$totalSteps",
                     style = MaterialTheme.typography.labelLarge,
-                    color = NeonCyan
+                    color = ChakraOrange
                 )
                 TextButton(
                     onClick = {
@@ -106,15 +104,14 @@ fun OnboardingScreen(
                             department,
                             academicYear,
                             timezoneId,
-                            useEthiopian,
-                            showDualCalendar,
+                            showEthiopianTime,
                             selectedPreset,
                             selectedPersonality
                         )
                     },
                     modifier = Modifier.testTag("onboarding_skip_button")
                 ) {
-                    Text("Skip to HQ", color = CyberTextSecondary)
+                    Text("Skip to Dojo", color = CyberTextSecondary)
                 }
             }
 
@@ -124,7 +121,7 @@ fun OnboardingScreen(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(4.dp)),
-                color = NeonCyan,
+                color = ChakraOrange,
                 trackColor = HoloSurface
             )
 
@@ -154,15 +151,24 @@ fun OnboardingScreen(
                                     color = CyberTextPrimary
                                 )
                                 Text(
-                                    text = "Configure your ninja student headquarters.",
+                                    text = "Configure your Hidden Leaf study scroll & training dojo.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = CyberTextSecondary
                                 )
                             }
                         }
-                        HoloCard {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_scroll_banner),
+                            contentDescription = "Hidden Leaf Study Scroll",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(104.dp)
+                                .clip(RoundedCornerShape(16.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                        HoloCard(accentColor = ChakraOrange) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.School, contentDescription = null, tint = NeonCyan)
+                                Icon(Icons.Filled.School, contentDescription = null, tint = ChakraOrange)
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text("Scholar Profile", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
                             }
@@ -179,7 +185,7 @@ fun OnboardingScreen(
                                 value = university,
                                 onValueChange = { university = it },
                                 label = { Text("University / Academy") },
-                                placeholder = { Text("e.g. Addis Ababa University") },
+                                placeholder = { Text("e.g. Metro Tech University") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth().testTag("onboarding_university_input")
                             )
@@ -208,17 +214,17 @@ fun OnboardingScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Filled.Public, contentDescription = null, tint = ChakraOrange)
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text("Time & Dual Calendar", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
+                                Text("Time & Timezone", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "Default timezone is East Africa Time (Addis Ababa) with optional Ethiopian calendar & clock display.",
+                                text = "Select your preferred timezone for class reminders, quiet hours, and local clock display.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = CyberTextSecondary
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             val tzOptions = listOf(
-                                "Africa/Addis_Ababa" to "Addis Ababa (EAT, UTC+3)",
+                                "Africa/Addis_Ababa" to "East Africa Time (EAT, UTC+3)",
                                 "UTC" to "UTC",
                                 "Africa/Nairobi" to "Nairobi (EAT)",
                                 "Europe/London" to "London (GMT/BST)",
@@ -243,36 +249,24 @@ fun OnboardingScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("Show Dual Calendar (Gregorian + Ethiopian)", color = CyberTextPrimary, fontWeight = FontWeight.Medium)
-                                    Text("Displays Meskerem–Pagume dates alongside Gregorian", style = MaterialTheme.typography.labelSmall, color = CyberTextSecondary)
+                                    Text("Show Ethiopian Time (12h Clock)", color = CyberTextPrimary, fontWeight = FontWeight.Medium)
+                                    Text("Displays shifted Ethiopian time alongside standard local time", style = MaterialTheme.typography.labelSmall, color = CyberTextSecondary)
                                 }
                                 Switch(
-                                    checked = showDualCalendar,
-                                    onCheckedChange = { showDualCalendar = it },
-                                    modifier = Modifier.testTag("onboarding_dual_calendar_switch")
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Prefer Ethiopian Primary Format", color = CyberTextPrimary)
-                                Switch(
-                                    checked = useEthiopian,
-                                    onCheckedChange = { useEthiopian = it }
+                                    checked = showEthiopianTime,
+                                    onCheckedChange = { showEthiopianTime = it },
+                                    modifier = Modifier.testTag("onboarding_ethiopian_time_switch")
                                 )
                             }
                         }
                     }
 
                     2 -> {
-                        HoloCard {
+                        HoloCard(accentColor = ChakraOrange) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Palette, contentDescription = null, tint = NeonCyan)
+                                Icon(Icons.Filled.Palette, contentDescription = null, tint = ChakraOrange)
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text("HUD Theme Preset", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
+                                Text("Dojo Theme Preset", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                             ThemePreset.entries.forEach { preset ->
@@ -283,8 +277,8 @@ fun OnboardingScreen(
                                         .fillMaxWidth()
                                         .padding(vertical = 4.dp),
                                     shape = RoundedCornerShape(14.dp),
-                                    color = if (chosen) NeonCyan.copy(alpha = 0.16f) else DeepObsidian,
-                                    border = BorderStroke(1.dp, if (chosen) NeonCyan else CyberBorderGlow)
+                                    color = if (chosen) ChakraOrange.copy(alpha = 0.16f) else DeepObsidian,
+                                    border = BorderStroke(1.dp, if (chosen) ChakraOrange else CyberBorderGlow)
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(14.dp),
@@ -295,7 +289,7 @@ fun OnboardingScreen(
                                             Text(preset.subtitle, style = MaterialTheme.typography.labelSmall, color = CyberTextSecondary)
                                         }
                                         if (chosen) {
-                                            Icon(Icons.Filled.Check, contentDescription = "Selected", tint = NeonCyan)
+                                            Icon(Icons.Filled.Check, contentDescription = "Selected", tint = ChakraOrange)
                                         }
                                     }
                                 }
@@ -407,18 +401,17 @@ fun OnboardingScreen(
                                 department,
                                 academicYear,
                                 timezoneId,
-                                useEthiopian,
-                                showDualCalendar,
+                                showEthiopianTime,
                                 selectedPreset,
                                 selectedPersonality
                             )
                         }
                     },
                     modifier = Modifier.weight(1f).height(52.dp).testTag("onboarding_next_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = MidnightNavy)
+                    colors = ButtonDefaults.buttonColors(containerColor = ChakraOrange, contentColor = MidnightNavy)
                 ) {
                     Text(
-                        text = if (step < totalSteps - 1) "Continue" else "Launch Shinobi HQ",
+                        text = if (step < totalSteps - 1) "Continue" else "Enter Shinobi Dojo",
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.width(6.dp))

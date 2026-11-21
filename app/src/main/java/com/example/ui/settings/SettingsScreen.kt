@@ -47,6 +47,8 @@ import com.example.viewmodel.PlannerUiState
 fun SettingsScreen(
     uiState: PlannerUiState,
     audioState: AudioPlaybackState,
+    isSignedInWithGoogle: Boolean,
+    onSignInWithGoogle: () -> Unit,
     onUpdateProfile: (UserProfileEntity) -> Unit,
     onUpdateSettings: ((UserSettingsEntity) -> UserSettingsEntity) -> Unit,
     onAddWallpaper: (String, String) -> Unit,
@@ -128,11 +130,20 @@ fun SettingsScreen(
                 SectionTitle(Icons.Filled.AccountCircle, "Account & Cloud Sync", visuals.primaryAccent)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "${profile?.displayName ?: "Scholar"} (${profile?.email ?: ""})",
+                    text = if (isSignedInWithGoogle) {
+                        "${profile?.displayName ?: "Scholar"} (${profile?.email ?: ""})"
+                    } else {
+                        "${profile?.displayName ?: "Shinobi Scholar"} • Local Dojo Mode"
+                    },
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${profile?.university?.ifBlank { "University not set" } ?: ""} • ${profile?.ninjaTitle ?: ""}",
+                    text = buildString {
+                        append(profile?.university?.ifBlank { "University not set" } ?: "University not set")
+                        append(" • ")
+                        append(profile?.ninjaTitle ?: "")
+                        if (!isSignedInWithGoogle) append(" • AI enabled without sign-in")
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -144,14 +155,29 @@ fun SettingsScreen(
                     ) {
                         Text("Edit Profile")
                     }
-                    Button(
-                        onClick = onTriggerSync,
-                        enabled = !uiState.isSyncing,
-                        modifier = Modifier.weight(1f).testTag("sync_now_button")
-                    ) {
-                        Icon(Icons.Filled.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (uiState.isSyncing) "Syncing..." else "Sync Now")
+                    if (isSignedInWithGoogle) {
+                        Button(
+                            onClick = onTriggerSync,
+                            enabled = !uiState.isSyncing,
+                            modifier = Modifier.weight(1f).testTag("sync_now_button")
+                        ) {
+                            Icon(Icons.Filled.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (uiState.isSyncing) "Syncing..." else "Sync Now")
+                        }
+                    } else {
+                        Button(
+                            onClick = onSignInWithGoogle,
+                            modifier = Modifier.weight(1f).testTag("settings_google_sign_in_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ChakraOrange,
+                                contentColor = MidnightNavy
+                            )
+                        ) {
+                            Icon(Icons.Filled.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sign in Google", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -168,20 +194,22 @@ fun SettingsScreen(
                         leadingIcon = { Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     )
                     AssistChip(
-                        onClick = { pdfExportLauncher.launch("shinobi_intelligence_report.pdf") },
+                        onClick = { pdfExportLauncher.launch("shinobi_training_report.pdf") },
                         label = { Text("PDF Report") },
                         leadingIcon = { Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = onSignOut,
-                        modifier = Modifier.weight(1f).testTag("sign_out_button")
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Sign Out")
+                    if (isSignedInWithGoogle) {
+                        OutlinedButton(
+                            onClick = onSignOut,
+                            modifier = Modifier.weight(1f).testTag("sign_out_button")
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sign Out")
+                        }
                     }
                     OutlinedButton(
                         onClick = { showDeleteConfirm = true },
@@ -190,7 +218,7 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Filled.DeleteForever, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Erase Data")
+                        Text(if (isSignedInWithGoogle) "Erase Data" else "Reset Local Data")
                     }
                 }
             }
@@ -278,7 +306,7 @@ fun SettingsScreen(
         item {
             HoloCard(accentColor = JadeEmerald) {
                 SectionTitle(Icons.Filled.AutoAwesome, "AI Mentor & Floating Orb", JadeEmerald)
-                SettingToggle("Enable AI Ninja Mentor", settings.aiEnabled) { b ->
+                SettingToggle("Enable AI Shinobi Sensei", settings.aiEnabled) { b ->
                     onUpdateSettings { it.copy(aiEnabled = b) }
                 }
                 SettingToggle("Show Floating AI Orb", settings.floatingAiEnabled) { b ->
@@ -306,18 +334,15 @@ fun SettingsScreen(
             }
         }
 
-        // 5. Time, Ethiopian Calendar & Region
+        // 5. Time & Region
         item {
             HoloCard(accentColor = GoldRankS) {
-                SectionTitle(Icons.Filled.Public, "Time & Ethiopian Calendar", GoldRankS)
+                SectionTitle(Icons.Filled.Public, "Time & Region", GoldRankS)
                 SettingToggle("Use 24-Hour Clock", settings.use24HourClock) { b ->
                     onUpdateSettings { it.copy(use24HourClock = b) }
                 }
-                SettingToggle("Show Dual Calendar (Gregorian + Ethiopian)", settings.showDualCalendar) { b ->
-                    onUpdateSettings { it.copy(showDualCalendar = b) }
-                }
-                SettingToggle("Primary Ethiopian Calendar Format", settings.useEthiopianCalendar) { b ->
-                    onUpdateSettings { it.copy(useEthiopianCalendar = b) }
+                SettingToggle("Show Ethiopian Time (12h Clock)", settings.showEthiopianTime) { b ->
+                    onUpdateSettings { it.copy(showEthiopianTime = b) }
                 }
                 Text("Timezone (${settings.timezoneId})", style = MaterialTheme.typography.labelMedium)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

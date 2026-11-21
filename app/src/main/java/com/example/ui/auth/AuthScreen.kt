@@ -33,7 +33,8 @@ import com.example.ui.theme.*
 
 @Composable
 fun AuthScreen(
-    onAuthSuccess: () -> Unit
+    onAuthSuccess: () -> Unit,
+    onSkipForNow: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -114,7 +115,7 @@ fun AuthScreen(
                         .clip(CircleShape)
                         .background(
                             Brush.radialGradient(
-                                listOf(NeonCyan.copy(alpha = 0.28f * crestAlpha), Color.Transparent)
+                                listOf(ChakraOrange.copy(alpha = 0.34f * crestAlpha), GoldRankS.copy(alpha = 0.12f), Color.Transparent)
                             )
                         ),
                     contentAlignment = Alignment.Center
@@ -139,14 +140,15 @@ fun AuthScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "CYBER-NINJA UNIVERSITY HUD",
+                    text = "HIDDEN LEAF STUDY DOJO",
                     style = MaterialTheme.typography.titleSmall,
-                    color = NeonCyan,
+                    color = ChakraOrange,
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
-                    text = "Master your classes, focus sessions, exams, and daily missions with offline-first speed and cloud sync.",
+                    text = "Master your classes, focus training, exams, and daily missions on your path to Kage.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = CyberTextSecondary,
                     textAlign = TextAlign.Center
@@ -157,16 +159,16 @@ fun AuthScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = HoloSurface.copy(alpha = 0.85f)),
-                border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                border = BorderStroke(1.dp, ChakraOrange.copy(alpha = 0.45f))
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    FeatureRow(Icons.Filled.Schedule, NeonCyan, "Smart University Schedule & Dual Ethiopian Calendar")
-                    FeatureRow(Icons.Filled.AutoAwesome, ChakraOrange, "Gemini Ninja Mentor & AI Timetable Scanner")
-                    FeatureRow(Icons.Filled.School, JadeEmerald, "D-S Rank Missions, XP Progression & Focus Dojo")
-                    FeatureRow(Icons.Filled.Lock, ArcaneViolet, "Encrypted Cloud Sync & Offline Room Storage")
+                    FeatureRow(Icons.Filled.Schedule, GoldRankS, "Smart Class Scroll & Conflict Detection")
+                    FeatureRow(Icons.Filled.AutoAwesome, ChakraOrange, "Gemini Shinobi Sensei & Timetable Scanner")
+                    FeatureRow(Icons.Filled.School, JadeEmerald, "Genin to Kage Missions, XP & Focus Dojo")
+                    FeatureRow(Icons.Filled.Lock, ArcaneViolet, "Offline-First Room Storage & Optional Cloud Sync")
                 }
             }
 
@@ -219,7 +221,7 @@ fun AuthScreen(
                         .testTag("google_sign_in_button"),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonCyan,
+                        containerColor = ChakraOrange,
                         contentColor = MidnightNavy
                     )
                 ) {
@@ -230,7 +232,7 @@ fun AuthScreen(
                             strokeWidth = 2.5.dp
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("LINKING SHINOBI ID...", fontWeight = FontWeight.Bold)
+                        Text("OPENING SHINOBI SCROLL...", fontWeight = FontWeight.Bold)
                     } else {
                         Text(
                             text = "SIGN IN WITH GOOGLE",
@@ -241,8 +243,28 @@ fun AuthScreen(
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = onSkipForNow,
+                    enabled = !isLoading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("skip_sign_in_button"),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ChakraOrange.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CyberTextPrimary)
+                ) {
+                    Text(
+                        text = "SKIP FOR NOW",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Requires Google account to sync your missions, XP, and AI mentor sessions securely.",
+                    text = "Google Sign-In is optional. AI Shinobi Sensei, Timetable Scanner, Missions, and Focus Dojo work without signing in—sign in anytime for cloud backup.",
                     style = MaterialTheme.typography.labelSmall,
                     color = CyberTextSecondary,
                     textAlign = TextAlign.Center

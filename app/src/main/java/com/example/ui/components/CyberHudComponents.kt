@@ -143,23 +143,6 @@ fun ShinobiWallpaperBackdrop(
             )
         }
 
-        if (visuals.showScanlines) {
-            val lineColor = visuals.primaryAccent.copy(alpha = 0.035f)
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val step = 10.dp.toPx()
-                var y = 0f
-                while (y < size.height) {
-                    drawLine(
-                        color = lineColor,
-                        start = Offset(0f, y),
-                        end = Offset(size.width, y),
-                        strokeWidth = 1f
-                    )
-                    y += step
-                }
-            }
-        }
-
         if (visuals.showParticles) {
             ChakraParticleLayer(accentColor = visuals.primaryAccent, secondaryColor = visuals.secondaryAccent)
         }
@@ -183,20 +166,26 @@ private fun ChakraParticleLayer(accentColor: Color, secondaryColor: Color) {
             Triple(
                 (i * 0.173f) % 1f,
                 (i * 0.291f) % 1f,
-                1.5f + (i % 3)
+                1.8f + (i % 3)
             )
         }
     }
     Canvas(modifier = Modifier.fillMaxSize()) {
         seeds.forEachIndexed { idx, (sx, sy, radiusDp) ->
             val yFrac = (sy - phase + 1f) % 1f
-            val drift = sin((phase * 2f * PI + idx).toDouble()).toFloat() * 14f
+            val drift = sin((phase * 2f * PI + idx).toDouble()).toFloat() * 18f
             val x = (sx * size.width + drift).coerceIn(0f, size.width)
             val y = yFrac * size.height
             val col = if (idx % 3 == 0) secondaryColor else accentColor
+            val r = radiusDp.dp.toPx()
             drawCircle(
-                color = col.copy(alpha = 0.22f),
-                radius = radiusDp.dp.toPx(),
+                color = col.copy(alpha = 0.09f),
+                radius = r * 2.2f,
+                center = Offset(x, y)
+            )
+            drawCircle(
+                color = col.copy(alpha = 0.24f),
+                radius = r,
                 center = Offset(x, y)
             )
         }

@@ -110,7 +110,7 @@ object ShinobiNotificationManager {
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Mission Alert: $title")
-            .setContentText("Category: $category — Tap to open Shinobi HUD")
+            .setContentText("Category: $category — Tap to open Shinobi Dojo")
             .setPriority(
                 if (category.equals("EXAM", true)) NotificationCompat.PRIORITY_MAX
                 else NotificationCompat.PRIORITY_HIGH

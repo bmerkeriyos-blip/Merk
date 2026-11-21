@@ -84,8 +84,8 @@ object ExportHelper {
         val sb = StringBuilder()
         sb.appendLine("Title,Subject,Category,Date,StartTime,EndTime,Rank,Priority,Completed,XP,Location")
         tasks.forEach { t ->
-            val start = EthiopicCalendarUtil.formatTime(t.startTimeMinutes, true)
-            val end = EthiopicCalendarUtil.formatTime(t.endTimeMinutes, true)
+            val start = ShinobiTimeUtil.formatTime(t.startTimeMinutes, true)
+            val end = ShinobiTimeUtil.formatTime(t.endTimeMinutes, true)
             sb.appendLine(
                 listOf(
                     t.title, t.subjectName, t.category, t.dateIso,
@@ -123,7 +123,7 @@ object ExportHelper {
         }
 
         var y = 48f
-        canvas.drawText("SHINOBI PLANNER — INTELLIGENCE REPORT", 40f, y, titlePaint)
+        canvas.drawText("SHINOBI PLANNER — TRAINING REPORT", 40f, y, titlePaint)
         y += 24f
         val scholar = profile?.displayName ?: "Shinobi Scholar"
         val uni = profile?.university?.ifBlank { "University Academy" } ?: "University Academy"
@@ -132,7 +132,7 @@ object ExportHelper {
         val totalMinutes = sessions.sumOf { it.durationMinutes }
         val completedCount = tasks.count { it.completed }
         canvas.drawText(
-            "Level ${profile?.level ?: 1} (${profile?.ninjaTitle ?: "Academy Initiate"})  |  XP: ${profile?.xp ?: 0}  |  Streak: ${profile?.currentStreak ?: 0}d",
+            "Level ${profile?.level ?: 1} (${profile?.ninjaTitle ?: "Academy Student"})  |  XP: ${profile?.xp ?: 0}  |  Streak: ${profile?.currentStreak ?: 0}d",
             40f, y, subtitlePaint
         )
         y += 18f
@@ -147,7 +147,7 @@ object ExportHelper {
         tasks.take(30).forEach { task ->
             if (y > 800f) return@forEach
             val status = if (task.completed) "[DONE]" else "[OPEN]"
-            val time = "${EthiopicCalendarUtil.formatTime(task.startTimeMinutes, true)}-${EthiopicCalendarUtil.formatTime(task.endTimeMinutes, true)}"
+            val time = "${ShinobiTimeUtil.formatTime(task.startTimeMinutes, true)}-${ShinobiTimeUtil.formatTime(task.endTimeMinutes, true)}"
             val line = "$status [${task.missionRank}] ${task.dateIso} $time  ${task.title.take(38)} (${task.subjectName})"
             canvas.drawText(line, 40f, y, bodyPaint)
             y += 16f

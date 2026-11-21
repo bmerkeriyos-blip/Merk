@@ -5,7 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.example.core.common.EthiopicCalendarUtil
+import com.example.core.common.ShinobiTimeUtil
 import com.example.data.local.PlannerTaskEntity
 import java.time.LocalDate
 import java.time.LocalTime
@@ -27,7 +27,7 @@ object ReminderScheduler {
         val date = runCatching { LocalDate.parse(task.dateIso) }.getOrNull() ?: return
         val startHour = (task.startTimeMinutes / 60).coerceIn(0, 23)
         val startMin = (task.startTimeMinutes % 60).coerceIn(0, 59)
-        val zone = EthiopicCalendarUtil.safeZoneId(EthiopicCalendarUtil.DEFAULT_TIMEZONE_ID)
+        val zone = ShinobiTimeUtil.safeZoneId(ShinobiTimeUtil.DEFAULT_TIMEZONE_ID)
         val eventZdt = ZonedDateTime.of(date, LocalTime.of(startHour, startMin), zone)
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
