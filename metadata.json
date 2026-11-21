@@ -1,0 +1,6 @@
+{
+  "name": "Shinobi Planner",
+  "description": "A cyber-ninja university study planner, mission tracker, focus timer, and AI mentor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

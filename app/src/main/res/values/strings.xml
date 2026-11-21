@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Shinobi Planner</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_schedule">Schedule</string>
+    <string name="nav_missions">Missions</string>
+    <string name="nav_progress">Progress</string>
+    <string name="nav_settings">Settings</string>
+    <string name="sign_in_google">Sign in with Google</string>
+    <string name="sign_out">Sign out</string>
+    <string name="ai_mentor_title">Shinobi Mentor AI</string>
+    <string name="timetable_scanner_title">AI Timetable Scanner</string>
+    <string name="default_timezone">Africa/Addis_Ababa</string>
+</resources>

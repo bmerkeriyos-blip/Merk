@@ -1,0 +1,351 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny all reads and writes unless explicitly matched below
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function validTimestamps(data) {
+      return data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.username is string && data.username.size() <= 60 &&
+             data.email is string && data.email.size() <= 150 &&
+             data.university is string && data.university.size() <= 120 &&
+             data.department is string && data.department.size() <= 120 &&
+             data.academicYear is string && data.academicYear.size() <= 40 &&
+             data.xp is int && data.xp >= 0 && data.xp <= 10000000 &&
+             data.level is int && data.level >= 1 && data.level <= 500 &&
+             data.ninjaTitle is string && data.ninjaTitle.size() <= 60 &&
+             data.currentStreak is int && data.currentStreak >= 0 && data.currentStreak <= 10000 &&
+             data.longestStreak is int && data.longestStreak >= 0 && data.longestStreak <= 10000 &&
+             data.onboardingCompleted is bool &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             (!('lastActiveDate' in data) || (data.lastActiveDate is string && data.lastActiveDate.size() <= 30)) &&
+             validTimestamps(data);
+    }
+
+    function isValidTask(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.category in ['CLASS', 'STUDY', 'ASSIGNMENT', 'EXAM', 'DEADLINE', 'PERSONAL', 'BREAK', 'EXERCISE'] &&
+             data.dateIso is string && data.dateIso.size() >= 8 && data.dateIso.size() <= 20 &&
+             data.startTimeMinutes is int && data.startTimeMinutes >= 0 && data.startTimeMinutes <= 1440 &&
+             data.endTimeMinutes is int && data.endTimeMinutes >= 0 && data.endTimeMinutes <= 1440 &&
+             data.priority in ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] &&
+             data.missionRank in ['D', 'C', 'B', 'A', 'S'] &&
+             data.recurrence in ['NONE', 'DAILY', 'WEEKLY', 'WEEKDAYS'] &&
+             data.xpReward is int && data.xpReward >= 0 && data.xpReward <= 5000 &&
+             data.colorHex is string && data.colorHex.size() <= 20 &&
+             data.completed is bool &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000)) &&
+             (!('subjectName' in data) || (data.subjectName is string && data.subjectName.size() <= 100)) &&
+             (!('location' in data) || (data.location is string && data.location.size() <= 150)) &&
+             (!('reminderOffsets' in data) || (data.reminderOffsets is string && data.reminderOffsets.size() <= 100)) &&
+             (!('subtasksSummary' in data) || (data.subtasksSummary is string && data.subtasksSummary.size() <= 2000)) &&
+             (!('completedAtIso' in data) || (data.completedAtIso is string && data.completedAtIso.size() <= 40)) &&
+             validTimestamps(data);
+    }
+
+    function isValidSubject(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+             data.code is string && data.code.size() <= 40 &&
+             data.colorHex is string && data.colorHex.size() <= 20 &&
+             data.targetHoursPerWeek is int && data.targetHoursPerWeek >= 0 && data.targetHoursPerWeek <= 168 &&
+             (!('instructor' in data) || (data.instructor is string && data.instructor.size() <= 120)) &&
+             (!('room' in data) || (data.room is string && data.room.size() <= 80)) &&
+             validTimestamps(data);
+    }
+
+    function isValidStudySession(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.subjectName is string && data.subjectName.size() <= 120 &&
+             data.mode in ['POMODORO', 'CUSTOM', 'STOPWATCH', 'EXAM_PREP'] &&
+             data.durationMinutes is int && data.durationMinutes >= 0 && data.durationMinutes <= 1440 &&
+             data.xpEarned is int && data.xpEarned >= 0 && data.xpEarned <= 10000 &&
+             data.startedAtEpochMs is int && data.startedAtEpochMs >= 0 &&
+             (!('taskId' in data) || (data.taskId is string && data.taskId.size() <= 128)) &&
+             validTimestamps(data);
+    }
+
+    function isValidAchievement(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.description is string && data.description.size() <= 300 &&
+             data.badgeCode is string && data.badgeCode.size() >= 1 && data.badgeCode.size() <= 60 &&
+             data.unlocked is bool &&
+             data.xpBonus is int && data.xpBonus >= 0 && data.xpBonus <= 10000 &&
+             validTimestamps(data);
+    }
+
+    function isValidSettings(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.themePreset is string && data.themePreset.size() <= 40 &&
+             data.appearanceMode is string && data.appearanceMode.size() <= 40 &&
+             data.timezoneId is string && data.timezoneId.size() <= 60 &&
+             data.use24HourClock is bool &&
+             data.useEthiopianCalendar is bool &&
+             data.showDualCalendar is bool &&
+             data.aiPersonality is string && data.aiPersonality.size() <= 40 &&
+             data.animationsEnabled is bool &&
+             data.reduceMotion is bool &&
+             data.hapticsEnabled is bool &&
+             data.floatingAiEnabled is bool &&
+             validTimestamps(data);
+    }
+
+    function isValidChat(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.personality is string && data.personality.size() <= 40 &&
+             data.lastMessagePreview is string && data.lastMessagePreview.size() <= 500 &&
+             validTimestamps(data);
+    }
+
+    function isValidChatMessage(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.chatId is string && data.chatId.size() >= 1 && data.chatId.size() <= 128 &&
+             data.role in ['user', 'model'] &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 16000 &&
+             (!('actionSummary' in data) || (data.actionSummary is string && data.actionSummary.size() <= 500)) &&
+             validTimestamps(data);
+    }
+
+    function isValidNote(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.subjectName is string && data.subjectName.size() <= 120 &&
+             (!('linkedTaskId' in data) || (data.linkedTaskId is string && data.linkedTaskId.size() <= 128)) &&
+             validTimestamps(data);
+    }
+
+    function isValidBackup(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.summary is string && data.summary.size() <= 500 &&
+             data.taskCount is int && data.taskCount >= 0 && data.taskCount <= 100000 &&
+             data.xpSnapshot is int && data.xpSnapshot >= 0 && data.xpSnapshot <= 10000000 &&
+             validTimestamps(data);
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) &&
+        incoming().keys().hasAll([
+          'userId', 'displayName', 'username', 'email', 'university',
+          'department', 'academicYear', 'xp', 'level', 'ninjaTitle',
+          'currentStreak', 'longestStreak', 'onboardingCompleted', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'userId', 'displayName', 'username', 'email', 'university',
+          'department', 'academicYear', 'xp', 'level', 'ninjaTitle',
+          'currentStreak', 'longestStreak', 'onboardingCompleted',
+          'photoUrl', 'lastActiveDate', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'username', 'email', 'university', 'department',
+          'academicYear', 'xp', 'level', 'ninjaTitle', 'currentStreak',
+          'longestStreak', 'onboardingCompleted', 'photoUrl', 'lastActiveDate', 'updatedAt'
+        ]);
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /tasks/{taskId} {
+        allow get: if isOwner(userId) && isValidId(taskId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(taskId) &&
+          incoming().keys().hasAll([
+            'userId', 'title', 'category', 'dateIso', 'startTimeMinutes', 'endTimeMinutes',
+            'priority', 'missionRank', 'recurrence', 'xpReward', 'colorHex', 'completed',
+            'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'title', 'notes', 'subjectName', 'category', 'dateIso',
+            'startTimeMinutes', 'endTimeMinutes', 'priority', 'missionRank', 'recurrence',
+            'location', 'reminderOffsets', 'xpReward', 'colorHex', 'completed',
+            'subtasksSummary', 'completedAtIso', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidTask(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(taskId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidTask(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'notes', 'subjectName', 'category', 'dateIso',
+            'startTimeMinutes', 'endTimeMinutes', 'priority', 'missionRank', 'recurrence',
+            'location', 'reminderOffsets', 'xpReward', 'colorHex', 'completed',
+            'subtasksSummary', 'completedAtIso', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(taskId);
+      }
+
+      match /subjects/{subjectId} {
+        allow get: if isOwner(userId) && isValidId(subjectId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(subjectId) &&
+          incoming().keys().hasAll(['userId', 'name', 'code', 'colorHex', 'targetHoursPerWeek', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'name', 'code', 'instructor', 'room', 'colorHex', 'targetHoursPerWeek', 'createdAt', 'updatedAt']) &&
+          isValidSubject(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(subjectId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidSubject(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'instructor', 'room', 'colorHex', 'targetHoursPerWeek', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(subjectId);
+      }
+
+      match /studySessions/{sessionId} {
+        allow get: if isOwner(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(sessionId) &&
+          incoming().keys().hasAll(['userId', 'subjectName', 'mode', 'durationMinutes', 'xpEarned', 'startedAtEpochMs', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'subjectName', 'mode', 'durationMinutes', 'xpEarned', 'startedAtEpochMs', 'taskId', 'createdAt', 'updatedAt']) &&
+          isValidStudySession(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(sessionId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidStudySession(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['subjectName', 'mode', 'durationMinutes', 'xpEarned', 'startedAtEpochMs', 'taskId', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(sessionId);
+      }
+
+      match /achievements/{achievementId} {
+        allow get: if isOwner(userId) && isValidId(achievementId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(achievementId) &&
+          incoming().keys().hasAll(['userId', 'title', 'description', 'badgeCode', 'unlocked', 'xpBonus', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'title', 'description', 'badgeCode', 'unlocked', 'xpBonus', 'createdAt', 'updatedAt']) &&
+          isValidAchievement(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(achievementId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidAchievement(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'badgeCode', 'unlocked', 'xpBonus', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(achievementId);
+      }
+
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(settingId) &&
+          incoming().keys().hasAll([
+            'userId', 'themePreset', 'appearanceMode', 'timezoneId',
+            'use24HourClock', 'useEthiopianCalendar', 'showDualCalendar',
+            'aiPersonality', 'animationsEnabled', 'reduceMotion', 'hapticsEnabled',
+            'floatingAiEnabled', 'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'themePreset', 'appearanceMode', 'timezoneId',
+            'use24HourClock', 'useEthiopianCalendar', 'showDualCalendar',
+            'aiPersonality', 'animationsEnabled', 'reduceMotion', 'hapticsEnabled',
+            'floatingAiEnabled', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidSettings(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(settingId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidSettings(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'themePreset', 'appearanceMode', 'timezoneId',
+            'use24HourClock', 'useEthiopianCalendar', 'showDualCalendar',
+            'aiPersonality', 'animationsEnabled', 'reduceMotion', 'hapticsEnabled',
+            'floatingAiEnabled', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(settingId);
+      }
+
+      match /chats/{chatId} {
+        allow get: if isOwner(userId) && isValidId(chatId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(chatId) &&
+          incoming().keys().hasAll(['userId', 'title', 'personality', 'lastMessagePreview', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'title', 'personality', 'lastMessagePreview', 'createdAt', 'updatedAt']) &&
+          isValidChat(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(chatId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidChat(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'personality', 'lastMessagePreview', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(chatId);
+      }
+
+      match /chatMessages/{messageId} {
+        allow get: if isOwner(userId) && isValidId(messageId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(messageId) &&
+          incoming().keys().hasAll(['userId', 'chatId', 'role', 'content', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'chatId', 'role', 'content', 'actionSummary', 'createdAt', 'updatedAt']) &&
+          isValidChatMessage(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(messageId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidChatMessage(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['chatId', 'role', 'content', 'actionSummary', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(messageId);
+      }
+
+      match /notes/{noteId} {
+        allow get: if isOwner(userId) && isValidId(noteId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(noteId) &&
+          incoming().keys().hasAll(['userId', 'title', 'content', 'subjectName', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'title', 'content', 'subjectName', 'linkedTaskId', 'createdAt', 'updatedAt']) &&
+          isValidNote(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(noteId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidNote(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'subjectName', 'linkedTaskId', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(noteId);
+      }
+
+      match /backups/{backupId} {
+        allow get: if isOwner(userId) && isValidId(backupId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(backupId) &&
+          incoming().keys().hasAll(['userId', 'summary', 'taskCount', 'xpSnapshot', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'summary', 'taskCount', 'xpSnapshot', 'createdAt', 'updatedAt']) &&
+          isValidBackup(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(backupId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          isValidBackup(incoming(), userId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['summary', 'taskCount', 'xpSnapshot', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(backupId);
+      }
+    }
+  }
+}
