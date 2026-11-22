@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.core.common.MissionRank
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.media.AudioPlaybackState
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.StudyNoteEntity
@@ -127,6 +128,7 @@ fun MissionsScreen(
             )
             MissionsTab.MISSION_BOARD -> MissionBoardTab(
                 tasks = uiState.tasks,
+                use24HourClock = uiState.settings.use24HourClock,
                 onToggleTask = onToggleTask
             )
             MissionsTab.STUDY_NOTES -> StudyNotesTab(
@@ -355,6 +357,7 @@ private fun FocusDojoTab(
 @Composable
 private fun MissionBoardTab(
     tasks: List<PlannerTaskEntity>,
+    use24HourClock: Boolean,
     onToggleTask: (PlannerTaskEntity) -> Unit
 ) {
     var selectedRankFilter by remember { mutableStateOf<String?>(null) }
@@ -417,8 +420,9 @@ private fun MissionBoardTab(
                         ShurikenCheckbox(checked = task.completed, onToggle = { onToggleTask(task) })
                         Column(modifier = Modifier.weight(1f)) {
                             Text(task.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            val startLabel = ShinobiTimeUtil.formatTime(task.startTimeMinutes, use24HourClock)
                             Text(
-                                "${task.subjectName} • ${task.dateIso} • +${task.xpReward} XP",
+                                "${task.subjectName} • ${task.dateIso} $startLabel • +${task.xpReward} XP",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

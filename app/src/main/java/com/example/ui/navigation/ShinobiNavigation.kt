@@ -158,13 +158,14 @@ fun ShinobiAppShell(
             profile != null && !profile.onboardingCompleted -> {
                 OnboardingScreen(
                     profile = profile,
-                    onComplete = { name, univ, dept, year, tz, showEthTime, pName, aiPers ->
+                    onComplete = { name, univ, dept, year, tz, use24h, showEthTime, pName, aiPers ->
                         plannerViewModel.completeOnboarding(
                             displayName = name,
                             university = univ,
                             department = dept,
                             academicYear = year,
                             timezoneId = tz,
+                            use24HourClock = use24h,
                             showEthiopianTime = showEthTime,
                             themePreset = pName,
                             aiPersonality = aiPers
@@ -445,6 +446,7 @@ private fun MainAuthenticatedScaffold(
                                 onToggleShuffle = { plannerViewModel.toggleShuffle() },
                                 onCycleRepeat = { plannerViewModel.cycleRepeatMode() },
                                 onSpeakMotivation = { plannerViewModel.speakMotivation(it) },
+                                onPlaySfx = { plannerViewModel.playSfx(it) },
                                 onTriggerSync = { plannerViewModel.triggerSyncNow(context) },
                                 onExportJson = { plannerViewModel.exportJson() },
                                 onExportCsv = { plannerViewModel.exportCsv() },

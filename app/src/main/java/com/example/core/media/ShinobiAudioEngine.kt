@@ -1,13 +1,7 @@
 package com.example.core.media
 
 import android.content.Context
-import android.media.AudioAttributes as PlatformAudioAttributes
-import android.media.SoundPool
 import android.net.Uri
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -16,15 +10,11 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.data.local.MusicTrackEntity
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -33,16 +23,6 @@ import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
-
-enum class ShinobiSfx {
-    SCROLL_OPEN,
-    SHURIKEN,
-    MISSION_COMPLETE,
-    XP_GAIN,
-    RANK_UP,
-    CHAKRA_PULSE,
-    BUTTON_TAP
-}
 
 data class AudioPlaybackState(
     val isPlaying: Boolean = false,
@@ -55,11 +35,9 @@ data class AudioPlaybackState(
 )
 
 class ShinobiAudioEngine(private val context: Context) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val soundEffectManager = ShinobiSoundEffectManager(context)
 
     private var player: ExoPlayer? = null
-    private var soundPool: SoundPool? = null
-    private val sfxMap = mutableMapOf<ShinobiSfx, Int>()
     private var tts: TextToSpeech? = null
     private var ttsReady = false
 
@@ -67,15 +45,12 @@ class ShinobiAudioEngine(private val context: Context) {
     val playbackState: StateFlow<AudioPlaybackState> = _playbackState.asStateFlow()
 
     private var musicVolume = 0.65f
-    private var sfxVolume = 0.8f
     private var motivationalVolume = 0.85f
-    private var hapticsEnabled = true
     private var quietHoursMuted = false
 
     private var loadedTracks: List<MusicTrackEntity> = emptyList()
 
     init {
-        initSoundPool()
         initTts()
     }
 
@@ -128,25 +103,6 @@ class ShinobiAudioEngine(private val context: Context) {
         )
     }
 
-    private fun initSoundPool() {
-        val attrs = PlatformAudioAttributes.Builder()
-            .setUsage(PlatformAudioAttributes.USAGE_GAME)
-            .setContentType(PlatformAudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-        val pool = SoundPool.Builder().setMaxStreams(6).setAudioAttributes(attrs).build()
-        soundPool = pool
-        scope.launch(Dispatchers.IO) {
-            val sfxDir = File(context.cacheDir, "shinobi_sfx").apply { mkdirs() }
-            ShinobiSfx.entries.forEach { sfx ->
-                val file = File(sfxDir, "${sfx.name.lowercase()}.wav")
-                if (!file.exists()) {
-                    writeSfxWav(sfx, file)
-                }
-                val id = pool.load(file.absolutePath, 1)
-                sfxMap[sfx] = id
-            }
-        }
-    }
 
     private fun initTts() {
         tts = TextToSpeech(context) { status ->
@@ -285,10 +241,14 @@ class ShinobiAudioEngine(private val context: Context) {
         quietMuted: Boolean
     ) {
         musicVolume = music.coerceIn(0f, 1f)
-        sfxVolume = sfx.coerceIn(0f, 1f)
         motivationalVolume = motivational.coerceIn(0f, 1f)
-        hapticsEnabled = haptics
         quietHoursMuted = quietMuted
+        soundEffectManager.updateConfig(
+            volume = sfx,
+            soundEnabled = sfx > 0.01f,
+            hapticsEnabled = haptics,
+            quietMuted = quietMuted
+        )
         player?.volume = if (quietMuted) 0f else musicVolume
         if (quietMuted && player?.isPlaying == true) {
             player?.pause()
@@ -296,14 +256,7 @@ class ShinobiAudioEngine(private val context: Context) {
     }
 
     fun playSfx(sfx: ShinobiSfx) {
-        if (quietHoursMuted) return
-        val id = sfxMap[sfx] ?: return
-        if (sfxVolume > 0.01f) {
-            soundPool?.play(id, sfxVolume, sfxVolume, 1, 0, 1f)
-        }
-        if (hapticsEnabled) {
-            triggerHaptic(sfx)
-        }
+        soundEffectManager.play(sfx)
     }
 
     fun speakMotivational(text: String) {
@@ -314,64 +267,13 @@ class ShinobiAudioEngine(private val context: Context) {
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "shinobi_motivation_${System.currentTimeMillis()}")
     }
 
-    private fun triggerHaptic(sfx: ShinobiSfx) {
-        val duration = when (sfx) {
-            ShinobiSfx.RANK_UP, ShinobiSfx.MISSION_COMPLETE -> 45L
-            ShinobiSfx.SHURIKEN, ShinobiSfx.XP_GAIN -> 25L
-            else -> 15L
-        }
-        val amp = when (sfx) {
-            ShinobiSfx.RANK_UP -> 200
-            ShinobiSfx.MISSION_COMPLETE -> 150
-            else -> 90
-        }
-        val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        }
-        vibrator?.vibrate(VibrationEffect.createOneShot(duration, amp))
-    }
-
     fun release() {
         player?.release()
         player = null
-        soundPool?.release()
-        soundPool = null
+        soundEffectManager.release()
         tts?.stop()
         tts?.shutdown()
         tts = null
-    }
-
-    private fun writeSfxWav(sfx: ShinobiSfx, outFile: File) {
-        val sampleRate = 22050
-        val durationMs = when (sfx) {
-            ShinobiSfx.RANK_UP -> 550
-            ShinobiSfx.MISSION_COMPLETE -> 420
-            ShinobiSfx.SCROLL_OPEN -> 260
-            ShinobiSfx.CHAKRA_PULSE -> 320
-            else -> 160
-        }
-        val numSamples = (sampleRate * durationMs) / 1000
-        val pcm = ByteArrayOutputStream(numSamples * 2)
-        for (i in 0 until numSamples) {
-            val t = i.toDouble() / sampleRate
-            val env = exp(-t * 8.0)
-            val freq = when (sfx) {
-                ShinobiSfx.RANK_UP -> 523.25 + (t * 620.0)
-                ShinobiSfx.MISSION_COMPLETE -> if (t < 0.18) 587.33 else 880.0
-                ShinobiSfx.XP_GAIN -> 659.25 + (t * 300.0)
-                ShinobiSfx.SHURIKEN -> 900.0 * exp(-t * 10.0) + 180.0
-                ShinobiSfx.SCROLL_OPEN -> 330.0 + (t * 420.0)
-                ShinobiSfx.CHAKRA_PULSE -> 261.63 * (1.0 + 0.15 * sin(2 * PI * 12 * t))
-                ShinobiSfx.BUTTON_TAP -> 740.0
-            }
-            val sample = (sin(2.0 * PI * freq * t) * env * 0.45 * Short.MAX_VALUE).toInt().toShort()
-            pcm.write(sample.toInt() and 0xFF)
-            pcm.write((sample.toInt() shr 8) and 0xFF)
-        }
-        writeWavFile(outFile, pcm.toByteArray(), sampleRate)
     }
 
     private fun writeAmbientSynthWav(outFile: File, baseFreq: Double, durationSeconds: Int) {

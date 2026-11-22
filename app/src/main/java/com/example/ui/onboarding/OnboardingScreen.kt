@@ -48,6 +48,7 @@ fun OnboardingScreen(
         department: String,
         academicYear: String,
         timezoneId: String,
+        use24HourClock: Boolean,
         showEthiopianTime: Boolean,
         themePreset: String,
         aiPersonality: String
@@ -59,6 +60,7 @@ fun OnboardingScreen(
     var department by remember { mutableStateOf(profile?.department.orEmpty()) }
     var academicYear by remember { mutableStateOf(profile?.academicYear?.ifBlank { "Year 2" } ?: "Year 2") }
     var timezoneId by remember { mutableStateOf(ShinobiTimeUtil.DEFAULT_TIMEZONE_ID) }
+    var use24HourClock by remember { mutableStateOf(false) }
     var showEthiopianTime by remember { mutableStateOf(true) }
     var selectedPreset by remember { mutableStateOf(ThemePreset.NARUTO.name) }
     var selectedPersonality by remember { mutableStateOf(AiPersonality.MENTOR.code) }
@@ -104,6 +106,7 @@ fun OnboardingScreen(
                             department,
                             academicYear,
                             timezoneId,
+                            use24HourClock,
                             showEthiopianTime,
                             selectedPreset,
                             selectedPersonality
@@ -241,6 +244,26 @@ fun OnboardingScreen(
                                     )
                                     Text(tzLabel, color = CyberTextPrimary, style = MaterialTheme.typography.bodyMedium)
                                 }
+                            }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = CyberBorderGlow)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("12-Hour Time (AM / PM)", color = CyberTextPrimary, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        text = if (!use24HourClock) "Shows times like 2:30 PM (turn off for 14:30)" else "24-hour clock active (14:30)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = CyberTextSecondary
+                                    )
+                                }
+                                Switch(
+                                    checked = !use24HourClock,
+                                    onCheckedChange = { useAmPm -> use24HourClock = !useAmPm },
+                                    modifier = Modifier.testTag("onboarding_am_pm_switch")
+                                )
                             }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = CyberBorderGlow)
                             Row(
@@ -401,6 +424,7 @@ fun OnboardingScreen(
                                 department,
                                 academicYear,
                                 timezoneId,
+                                use24HourClock,
                                 showEthiopianTime,
                                 selectedPreset,
                                 selectedPersonality

@@ -4,6 +4,7 @@ import com.example.core.common.ExportHelper
 import com.example.core.common.MissionRank
 import com.example.core.common.RankProgression
 import com.example.core.common.ShinobiTimeUtil
+import com.example.core.media.ShinobiSfx
 import com.example.data.local.PlannerTaskEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -14,10 +15,13 @@ import java.time.LocalTime
 class ExampleUnitTest {
 
     @Test
-    fun `standard date and time formatting works cleanly`() {
+    fun `standard date and time formatting supports am pm and 24 hour modes`() {
         assertEquals("Thu, Sep 11, 2025", ShinobiTimeUtil.formatDateHeader(LocalDate.of(2025, 9, 11)))
         assertEquals("14:30", ShinobiTimeUtil.formatTime(14 * 60 + 30, use24Hour = true))
         assertEquals("2:30 PM", ShinobiTimeUtil.formatTime(14 * 60 + 30, use24Hour = false))
+        assertEquals("12:00 AM", ShinobiTimeUtil.formatTime(0, use24Hour = false))
+        assertEquals("12:00 PM", ShinobiTimeUtil.formatTime(12 * 60, use24Hour = false))
+        assertTrue(ShinobiSfx.entries.containsAll(listOf(ShinobiSfx.SHURIKEN, ShinobiSfx.JUTSU)))
     }
 
     @Test

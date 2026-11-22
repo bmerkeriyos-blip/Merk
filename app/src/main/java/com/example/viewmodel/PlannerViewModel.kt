@@ -156,18 +156,17 @@ class PlannerViewModel(
         viewModelScope.launch {
             val (xpDelta, rankUpTitle) = repository.toggleTaskCompletion(task)
             if (!task.completed) {
+                audioEngine.soundEffectManager.play(ShinobiSfx.SHURIKEN)
                 if (rankUpTitle != null) {
-                    audioEngine.playSfx(ShinobiSfx.RANK_UP)
                     _celebration.value = "RANK UP! $rankUpTitle (+$xpDelta XP)"
                     if (uiState.value.settings.musicOnComplete) {
                         audioEngine.speakMotivational("Rank up! Welcome to $rankUpTitle.")
                     }
                 } else {
-                    audioEngine.playSfx(ShinobiSfx.MISSION_COMPLETE)
                     _celebration.value = "Mission Complete! +$xpDelta XP"
                 }
             } else {
-                audioEngine.playSfx(ShinobiSfx.BUTTON_TAP)
+                audioEngine.soundEffectManager.play(ShinobiSfx.BUTTON_TAP)
             }
         }
     }
@@ -242,6 +241,7 @@ class PlannerViewModel(
         department: String,
         academicYear: String,
         timezoneId: String,
+        use24HourClock: Boolean,
         showEthiopianTime: Boolean,
         themePreset: String,
         aiPersonality: String
@@ -260,13 +260,14 @@ class PlannerViewModel(
             val s = uiState.value.settings.copy(
                 userId = currentUserId,
                 timezoneId = timezoneId,
+                use24HourClock = use24HourClock,
                 showEthiopianTime = showEthiopianTime,
                 themePreset = themePreset,
                 aiPersonality = aiPersonality
             )
             repository.saveSettings(s)
             applyAudioVolumes(s)
-            audioEngine.playSfx(ShinobiSfx.RANK_UP)
+            audioEngine.playSfx(ShinobiSfx.JUTSU)
         }
     }
 

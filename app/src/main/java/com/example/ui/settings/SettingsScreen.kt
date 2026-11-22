@@ -35,7 +35,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.core.ai.AiPersonality
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.media.AudioPlaybackState
+import com.example.core.media.ShinobiSfx
 import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
 import com.example.data.local.WallpaperItemEntity
@@ -64,6 +66,7 @@ fun SettingsScreen(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onSpeakMotivation: (String) -> Unit,
+    onPlaySfx: (ShinobiSfx) -> Unit = {},
     onTriggerSync: () -> Unit,
     onExportJson: () -> String,
     onExportCsv: () -> String,
@@ -338,8 +341,31 @@ fun SettingsScreen(
         item {
             HoloCard(accentColor = GoldRankS) {
                 SectionTitle(Icons.Filled.Public, "Time & Region", GoldRankS)
-                SettingToggle("Use 24-Hour Clock", settings.use24HourClock) { b ->
-                    onUpdateSettings { it.copy(use24HourClock = b) }
+                val amPmEnabled = !settings.use24HourClock
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("12-Hour Time (AM / PM)", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = if (amPmEnabled) {
+                                "Format preview: ${ShinobiTimeUtil.formatTime(14 * 60 + 30, use24Hour = false)} (AM / PM)"
+                            } else {
+                                "Format preview: ${ShinobiTimeUtil.formatTime(14 * 60 + 30, use24Hour = true)} (24-Hour)"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = amPmEnabled,
+                        onCheckedChange = { useAmPm ->
+                            onUpdateSettings { it.copy(use24HourClock = !useAmPm) }
+                        },
+                        modifier = Modifier.testTag("am_pm_time_switch")
+                    )
                 }
                 SettingToggle("Show Ethiopian Time (12h Clock)", settings.showEthiopianTime) { b ->
                     onUpdateSettings { it.copy(showEthiopianTime = b) }
@@ -361,11 +387,32 @@ fun SettingsScreen(
         item {
             HoloCard(accentColor = visuals.primaryAccent) {
                 SectionTitle(Icons.Filled.Notifications, "Alerts & Quiet Hours", visuals.primaryAccent)
-                SettingToggle("Quiet Hours (${settings.quietStartHour}:00 - ${settings.quietEndHour}:00)", settings.quietHoursEnabled) { b ->
+                val quietStartLabel = ShinobiTimeUtil.formatTime(settings.quietStartHour * 60, settings.use24HourClock)
+                val quietEndLabel = ShinobiTimeUtil.formatTime(settings.quietEndHour * 60, settings.use24HourClock)
+                SettingToggle("Quiet Hours ($quietStartLabel - $quietEndLabel)", settings.quietHoursEnabled) { b ->
                     onUpdateSettings { it.copy(quietHoursEnabled = b) }
                 }
-                SettingToggle("Sound Alerts", settings.soundEnabled) { b ->
+                SettingToggle("Sound Effects & Alerts (Shuriken / Jutsu)", settings.soundEnabled) { b ->
                     onUpdateSettings { it.copy(soundEnabled = b) }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { onPlaySfx(ShinobiSfx.SHURIKEN) },
+                        enabled = settings.soundEnabled,
+                        modifier = Modifier.weight(1f).height(48.dp).testTag("test_shuriken_sfx_button")
+                    ) {
+                        Text("Test Shuriken")
+                    }
+                    OutlinedButton(
+                        onClick = { onPlaySfx(ShinobiSfx.JUTSU) },
+                        enabled = settings.soundEnabled,
+                        modifier = Modifier.weight(1f).height(48.dp).testTag("test_jutsu_sfx_button")
+                    ) {
+                        Text("Test Jutsu")
+                    }
                 }
                 SettingToggle("Vibration Alerts", settings.vibrationEnabled) { b ->
                     onUpdateSettings { it.copy(vibrationEnabled = b) }
@@ -484,7 +531,8 @@ fun SettingsScreen(
             onToggleShuffle = onToggleShuffle,
             onCycleRepeat = onCycleRepeat,
             onUpdateSettings = onUpdateSettings,
-            onSpeakMotivation = onSpeakMotivation
+            onSpeakMotivation = onSpeakMotivation,
+            onPlaySfx = onPlaySfx
         )
     }
 

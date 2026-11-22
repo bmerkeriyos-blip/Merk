@@ -100,7 +100,7 @@ class FocusTimerViewModel(
 
     private fun startTimer(playFocusMusic: Boolean) {
         if (timerJob?.isActive == true) return
-        audioEngine.playSfx(ShinobiSfx.CHAKRA_PULSE)
+        audioEngine.soundEffectManager.play(ShinobiSfx.JUTSU)
         if (playFocusMusic) audioEngine.playIfReady()
         _uiState.update { it.copy(isRunning = true, lastCompletedMessage = null) }
 

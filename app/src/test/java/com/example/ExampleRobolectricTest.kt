@@ -2,7 +2,11 @@ package com.example
 
 import android.app.NotificationManager
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -15,7 +19,10 @@ import com.example.data.local.SubtaskEntity
 import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import com.example.core.media.AudioPlaybackState
+import com.example.core.media.ShinobiSfx
+import com.example.core.media.ShinobiSoundEffectManager
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.settings.SettingsScreen
 import com.example.ui.theme.ShinobiPlannerTheme
@@ -193,5 +200,73 @@ class ExampleRobolectricTest {
 
         composeRule.onNodeWithTag("settings_google_sign_in_button").assertIsDisplayed().performClick()
         assertTrue(signInClicked)
+    }
+
+    @Test
+    fun `settings screen toggles am pm clock and previews shuriken and jutsu sfx`() {
+        var latestSettings by mutableStateOf(UserSettingsEntity(userId = "local_shinobi", use24HourClock = false))
+        val playedSfx = mutableListOf<ShinobiSfx>()
+
+        composeRule.setContent {
+            val state = PlannerUiState(
+                profile = UserProfileEntity(
+                    uid = "local_shinobi",
+                    displayName = "Shinobi Scholar",
+                    username = "local_shinobi",
+                    email = ""
+                ),
+                settings = latestSettings
+            )
+            ShinobiPlannerTheme {
+                SettingsScreen(
+                    uiState = state,
+                    audioState = AudioPlaybackState(),
+                    isSignedInWithGoogle = false,
+                    onSignInWithGoogle = {},
+                    onUpdateProfile = {},
+                    onUpdateSettings = { transform -> latestSettings = transform(latestSettings) },
+                    onAddWallpaper = { _, _ -> },
+                    onUpdateWallpaperTuning = { _, _, _, _, _ -> },
+                    onDeleteWallpaper = {},
+                    onResetWallpapers = {},
+                    onAddTrack = { _, _, _ -> },
+                    onDeleteTrack = {},
+                    onPlayTrackAt = {},
+                    onTogglePlayPauseMusic = {},
+                    onNextTrack = {},
+                    onPreviousTrack = {},
+                    onToggleShuffle = {},
+                    onCycleRepeat = {},
+                    onSpeakMotivation = {},
+                    onPlaySfx = { playedSfx += it },
+                    onTriggerSync = {},
+                    onExportJson = { "{}" },
+                    onExportCsv = { "" },
+                    onWritePdf = { true },
+                    onSignOut = {},
+                    onDeleteAccountData = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings_screen").performScrollToNode(hasTestTag("am_pm_time_switch"))
+        composeRule.onNodeWithTag("am_pm_time_switch").performClick()
+        composeRule.waitForIdle()
+        assertTrue(latestSettings.use24HourClock)
+
+        composeRule.onNodeWithTag("settings_screen").performScrollToNode(hasTestTag("test_shuriken_sfx_button"))
+        composeRule.onNodeWithTag("test_shuriken_sfx_button").performClick()
+        composeRule.onNodeWithTag("settings_screen").performScrollToNode(hasTestTag("test_jutsu_sfx_button"))
+        composeRule.onNodeWithTag("test_jutsu_sfx_button").performClick()
+        assertEquals(listOf(ShinobiSfx.SHURIKEN, ShinobiSfx.JUTSU), playedSfx)
+    }
+
+    @Test
+    fun `sound effect manager initializes and plays shuriken and jutsu safely`() {
+        val manager = ShinobiSoundEffectManager(context)
+        manager.updateConfig(volume = 0.7f, soundEnabled = true, hapticsEnabled = false, quietMuted = false)
+        manager.play(ShinobiSfx.SHURIKEN)
+        manager.play(ShinobiSfx.JUTSU)
+        manager.release()
     }
 }

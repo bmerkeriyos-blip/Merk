@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import com.example.core.media.AudioPlaybackState
+import com.example.core.media.ShinobiSfx
 import com.example.data.local.MusicTrackEntity
 import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
@@ -237,7 +238,8 @@ fun MusicStudioDialog(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onUpdateSettings: ((UserSettingsEntity) -> UserSettingsEntity) -> Unit,
-    onSpeakMotivation: (String) -> Unit
+    onSpeakMotivation: (String) -> Unit,
+    onPlaySfx: (ShinobiSfx) -> Unit = {}
 ) {
     val context = LocalContext.current
     val audioPicker = rememberLauncherForActivityResult(
@@ -306,6 +308,23 @@ fun MusicStudioDialog(
                     value = settings.sfxVolume,
                     onValueChange = { v -> onUpdateSettings { it.copy(sfxVolume = v) } }
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { onPlaySfx(ShinobiSfx.SHURIKEN) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Shuriken SFX")
+                    }
+                    OutlinedButton(
+                        onClick = { onPlaySfx(ShinobiSfx.JUTSU) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Jutsu SFX")
+                    }
+                }
 
                 Text("Motivational Voice Volume (${(settings.motivationalVolume * 100).toInt()}%)")
                 Slider(
