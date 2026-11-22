@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GRADLE_OPTS: "-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
+      JAVA_TOOL_OPTIONS: "-Drobolectric.dependency.repo.url=https://maven-central.storage-download.googleapis.com/maven2"
 
     steps:
       - name: Checkout repository
@@ -27,7 +28,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: current
+          gradle-version: 9.3.1
           cache-read-only: false
 
       - name: Accept Android SDK Licenses & Ensure Platform 36.1
@@ -53,10 +54,10 @@ jobs:
           fi
 
       - name: Assemble Debug APK
-        run: gradle assembleDebug --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" --console=plain
+        run: gradle assembleDebug --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" --console=plain
 
       - name: Run Unit Tests
-        run: gradle testDebugUnitTest --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" -Drobolectric.dependency.repo.url=https://maven-central.storage-download.googleapis.com/maven2 --console=plain
+        run: gradle testDebugUnitTest --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" --console=plain
 
       - name: Upload Debug APK Artifact
         if: success()

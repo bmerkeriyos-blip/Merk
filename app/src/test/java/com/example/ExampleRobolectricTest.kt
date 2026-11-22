@@ -523,8 +523,15 @@ class Android12CompatibilityTest {
     }
 
     @Test
-    fun `android 12 notifications and Room MIGRATION_2_3 succeed cleanly`() {
+    fun `android 12 notifications sound effects and Room MIGRATION_2_3 succeed cleanly`() {
+        assertTrue(ShinobiNotificationManager.hasNotificationPermission(context))
         ShinobiNotificationManager.ensureChannels(context)
+        val sfxManager = ShinobiSoundEffectManager(context)
+        sfxManager.updateConfig(volume = 0.7f, soundEnabled = true, hapticsEnabled = true, quietMuted = false)
+        sfxManager.play(ShinobiSfx.SHURIKEN)
+        sfxManager.play(ShinobiSfx.JUTSU)
+        sfxManager.release()
+
         val futureDate = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
         val task = PlannerTaskEntity(
             id = "sdk31_alarm",

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ShinobiPlanner" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/shinobi_navy_bg</item>
+        <item name="android:windowSplashScreenBackground">@color/shinobi_navy_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_round</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/shinobi_navy_bg</item>
+    </style>
+</resources>

@@ -133,7 +133,9 @@ class ShinobiSoundEffectManager(private val context: Context) {
             @Suppress("DEPRECATION")
             context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
         }
-        vibrator?.vibrate(VibrationEffect.createOneShot(duration, amp))
+        runCatching {
+            vibrator?.vibrate(VibrationEffect.createOneShot(duration, amp))
+        }
     }
 
     private fun writeSfxWav(sfx: ShinobiSfx, outFile: File) {
