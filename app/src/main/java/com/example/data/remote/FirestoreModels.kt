@@ -47,7 +47,7 @@ data class UserProfileCloud(
         "lastActiveDate" to lastActiveDate?.take(30),
         "createdAt" to (createdAt ?: FieldValue.serverTimestamp()),
         "updatedAt" to FieldValue.serverTimestamp()
-    ).filterValues { it != null }.mapValues { it.value!! }
+    ).mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
 }
 
 @Keep
@@ -96,7 +96,7 @@ data class CloudTask(
         "completedAtIso" to completedAtIso?.take(40),
         "createdAt" to (createdAt ?: FieldValue.serverTimestamp()),
         "updatedAt" to FieldValue.serverTimestamp()
-    ).filterValues { it != null }.mapValues { it.value!! }
+    ).mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
 }
 
 @Keep
@@ -123,7 +123,7 @@ data class CloudSubject(
         "targetHoursPerWeek" to targetHoursPerWeek.coerceIn(0L, 168L),
         "createdAt" to (createdAt ?: FieldValue.serverTimestamp()),
         "updatedAt" to FieldValue.serverTimestamp()
-    ).filterValues { it != null }.mapValues { it.value!! }
+    ).mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
 }
 
 @Keep
@@ -150,7 +150,7 @@ data class CloudStudySession(
         "taskId" to taskId?.take(128),
         "createdAt" to (createdAt ?: FieldValue.serverTimestamp()),
         "updatedAt" to FieldValue.serverTimestamp()
-    ).filterValues { it != null }.mapValues { it.value!! }
+    ).mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
 }
 
 @Keep
@@ -175,7 +175,7 @@ data class CloudAchievement(
         "xpBonus" to xpBonus.coerceIn(0L, 10000L),
         "createdAt" to (createdAt ?: FieldValue.serverTimestamp()),
         "updatedAt" to FieldValue.serverTimestamp()
-    ).filterValues { it != null }.mapValues { it.value!! }
+    ).mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
 }
 
 @Keep
@@ -198,5 +198,5 @@ data class CloudNote(
         "linkedTaskId" to linkedTaskId?.take(128),
         "createdAt" to (createdAt ?: FieldValue.serverTimestamp()),
         "updatedAt" to FieldValue.serverTimestamp()
-    ).filterValues { it != null }.mapValues { it.value!! }
+    ).mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
 }

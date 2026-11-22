@@ -54,10 +54,20 @@ jobs:
           fi
 
       - name: Assemble Debug APK
-        run: gradle assembleDebug --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" --console=plain
+        run: gradle assembleDebug --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8" --console=plain
 
       - name: Run Unit Tests
-        run: gradle testDebugUnitTest --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" --console=plain
+        run: gradle testDebugUnitTest --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8" --console=plain
+
+      - name: Upload Unit Test Report on Failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: unit-test-report
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
+          retention-days: 7
 
       - name: Upload Debug APK Artifact
         if: success()

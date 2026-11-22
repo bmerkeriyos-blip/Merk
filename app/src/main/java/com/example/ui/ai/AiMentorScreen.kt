@@ -262,6 +262,7 @@ fun AiMentorScreen(
                         onClick = {
                             onSendMessage(cmd, personality, tasks, timezoneId)
                         },
+                        enabled = chatState !is AiChatUiState.Loading && chatState !is AiChatUiState.Streaming,
                         label = { Text(cmd, maxLines = 1) }
                     )
                 }

@@ -138,6 +138,7 @@ class AiViewModel(
     ) {
         val trimmed = text.trim()
         if (trimmed.isBlank()) return
+        if (_chatState.value is AiChatUiState.Loading || _chatState.value is AiChatUiState.Streaming) return
 
         viewModelScope.launch {
             var chatId = _activeChatId.value
@@ -155,6 +156,7 @@ class AiViewModel(
                 _activeChatId.value = chatId
             }
 
+            val priorHistory = messages.value.filter { it.chatId == chatId }
             val userMsg = ChatMessageEntity(
                 chatId = chatId,
                 userId = currentUserId,
@@ -176,7 +178,7 @@ class AiViewModel(
                 var latestReply = ""
                 aiService.streamMentorReply(
                     personality = personality,
-                    history = messages.value,
+                    history = priorHistory,
                     userMessage = trimmed,
                     scheduleContext = scheduleSummary
                 ).collect { accumulated ->
@@ -337,8 +339,8 @@ class AiViewModel(
                 lastSuggestionFetchMs = System.currentTimeMillis()
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                // Keep quiet on dashboard if offline or rate-limited
+            } catch (e: Exception) {
+                Log.w("AiViewModel", "Daily suggestion refresh failed: ${e.message}")
             } finally {
                 suggestionInFlight = false
             }

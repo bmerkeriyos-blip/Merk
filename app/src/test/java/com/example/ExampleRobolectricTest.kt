@@ -36,6 +36,7 @@ import com.example.core.media.ShinobiSfx
 import com.example.core.media.ShinobiSoundEffectManager
 import com.example.core.notifications.ReminderScheduler
 import com.example.core.notifications.ShinobiNotificationManager
+import com.example.data.local.ChatMessageEntity
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.ShinobiDatabase
 import com.example.data.local.SubtaskEntity
@@ -83,7 +84,7 @@ import java.time.format.DateTimeFormatter
 private class FakeShinobiAiBackend(
     private val contentHandler: suspend (modelName: String, promptText: String, jsonSchema: Schema?) -> String? = { _, _, _ -> "Focus on Algorithms for 25 minutes." },
     private val multimodalHandler: suspend (modelName: String, promptText: String, images: List<Bitmap>, jsonSchema: Schema) -> String? = { _, _, _, _ -> """{"events":[]}""" },
-    private val streamHandler: (modelName: String, history: List<Content>, userMessage: String) -> Flow<String> = { _, _, _ -> flow { emit("Shinobi plan ready.") } }
+    private val streamHandler: (modelName: String, systemInstruction: String, history: List<Content>, userMessage: String) -> Flow<String> = { _, _, _, _ -> flow { emit("Shinobi plan ready.") } }
 ) : ShinobiAiBackend {
     val calledModels = mutableListOf<String>()
 
@@ -97,14 +98,19 @@ private class FakeShinobiAiBackend(
         return multimodalHandler(modelName, promptText, images, jsonSchema)
     }
 
-    override fun streamChatReply(modelName: String, history: List<Content>, userMessage: String): Flow<String> {
+    override fun streamChatReply(
+        modelName: String,
+        systemInstruction: String,
+        history: List<Content>,
+        userMessage: String
+    ): Flow<String> {
         calledModels += modelName
-        return streamHandler(modelName, history, userMessage)
+        return streamHandler(modelName, systemInstruction, history, userMessage)
     }
 }
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class ExampleRobolectricTest {
 
     @get:Rule
@@ -358,7 +364,7 @@ class ExampleRobolectricTest {
         assertEquals(900, created.startTimeMinutes)
 
         val fallbackStreamBackend = FakeShinobiAiBackend(
-            streamHandler = { modelName, _, _ ->
+            streamHandler = { modelName, _, _, _ ->
                 flow {
                     if (modelName == AiMentorService.PRIMARY_MODEL) {
                         throw IllegalStateException("HTTP 429 RESOURCE_EXHAUSTED quota exceeded")
@@ -396,9 +402,41 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `ai mentor sanitizes multi turn history to strictly alternate user and model roles`() = runTest {
+        var capturedSystem = ""
+        var capturedHistory: List<Content> = emptyList()
+        val captureBackend = FakeShinobiAiBackend(
+            streamHandler = { _, systemInstruction, history, _ ->
+                capturedSystem = systemInstruction
+                capturedHistory = history
+                flow { emit("Ready for training!") }
+            }
+        )
+        val service = AiMentorService(backend = captureBackend, retryDelayMs = 0L)
+        val noisyHistory = listOf(
+            ChatMessageEntity(chatId = "c1", userId = "u1", role = "model", content = "Orphaned intro"),
+            ChatMessageEntity(chatId = "c1", userId = "u1", role = "user", content = "Hi Sensei"),
+            ChatMessageEntity(chatId = "c1", userId = "u1", role = "model", content = "Greetings, shinobi!"),
+            ChatMessageEntity(chatId = "c1", userId = "u1", role = "user", content = "What next?")
+        )
+        val reply = service.streamMentorReply(
+            personality = AiPersonality.STRICT,
+            history = noisyHistory,
+            userMessage = "What next?",
+            scheduleContext = "OS Lab at 4 PM"
+        ).toList()
+
+        assertEquals(listOf("Ready for training!"), reply)
+        assertTrue(capturedSystem.contains("Jonin squad captain"))
+        assertEquals(2, capturedHistory.size)
+        assertEquals("user", capturedHistory[0].role)
+        assertEquals("model", capturedHistory[1].role)
+    }
+
+    @Test
     fun `ai mentor surfaces authentic error when both primary and fallback models fail`() = runTest {
         val exhaustedBackend = FakeShinobiAiBackend(
-            streamHandler = { _, _, _ ->
+            streamHandler = { _, _, _, _ ->
                 flow {
                     throw IllegalStateException("429 RESOURCE_EXHAUSTED all quota exhausted")
                 }
@@ -452,6 +490,10 @@ class ExampleRobolectricTest {
             advanceUntilIdle()
             assertEquals(1, countingBackend.calledModels.size)
             assertEquals("Complete your Rank-B mission before sunset.", vm.dailySuggestion.value)
+
+            vm.refreshDailySuggestion(tasks, ShinobiTimeUtil.DEFAULT_TIMEZONE_ID, force = true)
+            advanceUntilIdle()
+            assertEquals(2, countingBackend.calledModels.size)
         } finally {
             Dispatchers.resetMain()
         }
@@ -459,7 +501,7 @@ class ExampleRobolectricTest {
 }
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [31])
+@Config(sdk = [31], qualifiers = "w411dp-h891dp")
 class Android12CompatibilityTest {
 
     @get:Rule

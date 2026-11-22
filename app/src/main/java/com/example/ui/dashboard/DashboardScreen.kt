@@ -124,7 +124,8 @@ fun DashboardScreen(
     onOpenScanner: () -> Unit,
     onSaveWidgetsOrder: (String) -> Unit,
     onOpenScheduleView: () -> Unit = onOpenScheduleAdd,
-    onOpenSettings: () -> Unit = {}
+    onOpenSettings: () -> Unit = {},
+    onForceRefreshSuggestion: () -> Unit = onRefreshSuggestion
 ) {
     val visuals = LocalShinobiVisuals.current
     val settings = uiState.settings
@@ -242,7 +243,7 @@ fun DashboardScreen(
                     }
 
                     IconButton(
-                        onClick = onRefreshSuggestion,
+                        onClick = onForceRefreshSuggestion,
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
@@ -656,7 +657,7 @@ fun DashboardScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(onClick = onRefreshSuggestion, modifier = Modifier.size(48.dp)) {
+                        IconButton(onClick = onForceRefreshSuggestion, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Filled.Refresh, contentDescription = "Refresh Briefing", tint = HolographicPurple)
                         }
                     }

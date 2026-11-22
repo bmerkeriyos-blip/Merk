@@ -1,6 +1,7 @@
 package com.example.core.ai
 
 import android.graphics.Bitmap
+import android.util.Log
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.PlannerTaskEntity
 import com.google.firebase.Firebase
@@ -105,6 +106,7 @@ interface ShinobiAiBackend {
 
     fun streamChatReply(
         modelName: String,
+        systemInstruction: String = "",
         history: List<Content>,
         userMessage: String
     ): Flow<String>
@@ -152,10 +154,19 @@ class FirebaseShinobiAiBackend : ShinobiAiBackend {
 
     override fun streamChatReply(
         modelName: String,
+        systemInstruction: String,
         history: List<Content>,
         userMessage: String
     ): Flow<String> = flow {
-        val chat = Firebase.ai.generativeModel(modelName = modelName).startChat(history = history)
+        val model = if (systemInstruction.isNotBlank()) {
+            Firebase.ai.generativeModel(
+                modelName = modelName,
+                systemInstruction = content { text(systemInstruction) }
+            )
+        } else {
+            Firebase.ai.generativeModel(modelName = modelName)
+        }
+        val chat = model.startChat(history = history)
         chat.sendMessageStream(userMessage).collect { chunk ->
             val piece = chunk.text.orEmpty()
             if (piece.isNotEmpty()) emit(piece)
@@ -170,6 +181,45 @@ class AiMentorService(
     companion object {
         const val PRIMARY_MODEL = "gemini-3.8-flash"
         const val LITE_MODEL = "gemini-3.5-flash-lite"
+
+        internal fun sanitizeChatHistory(
+            history: List<ChatMessageEntity>,
+            pendingUserMessage: String
+        ): List<Content> {
+            val cleaned = mutableListOf<Pair<String, String>>()
+            for (msg in history) {
+                val text = msg.content.trim()
+                if (text.isEmpty()) continue
+                val role = if (msg.role.equals("model", ignoreCase = true)) "model" else "user"
+                if (cleaned.isEmpty() && role == "model") continue
+                if (cleaned.isNotEmpty() && cleaned.last().first == role) {
+                    val prev = cleaned.removeAt(cleaned.lastIndex)
+                    cleaned.add(role to "${prev.second}\n\n$text")
+                } else {
+                    cleaned.add(role to text)
+                }
+            }
+
+            // Strip trailing user turn(s) so pending sendMessageStream(userMessage) never follows a user turn
+            val trimmedPending = pendingUserMessage.trim()
+            if (cleaned.isNotEmpty() && cleaned.last().first == "user") {
+                if (cleaned.last().second == trimmedPending || cleaned.size % 2 == 1) {
+                    cleaned.removeAt(cleaned.lastIndex)
+                }
+            }
+            while (cleaned.isNotEmpty() && cleaned.last().first != "model") {
+                cleaned.removeAt(cleaned.lastIndex)
+            }
+
+            val window = cleaned.takeLast(12).toMutableList()
+            while (window.isNotEmpty() && window.first().first != "user") {
+                window.removeAt(0)
+            }
+
+            return window.map { (role, text) ->
+                content(role) { text(text) }
+            }
+        }
 
         internal fun isQuotaOrRateLimitError(t: Throwable): Boolean {
             var cur: Throwable? = t
@@ -324,7 +374,8 @@ class AiMentorService(
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w("AiMentorService", "classifyCommand fell back to CHAT_ONLY: ${e.message}")
             ParsedAiCommand.ChatOnly
         }
     }
@@ -342,13 +393,7 @@ class AiMentorService(
             Provide clear, actionable, motivating guidance. Never invent fake grades or pretend an action happened if it didn't.
         """.trimIndent()
 
-        val chatHistory = buildList {
-            add(content("user") { text(systemAndContext) })
-            add(content("model") { text("Understood. I am ready to guide your training and academic missions.") })
-            history.takeLast(12).forEach { msg ->
-                add(content(msg.role) { text(msg.content) })
-            }
-        }
+        val chatHistory = sanitizeChatHistory(history, userMessage)
 
         val modelsToTry = listOf(PRIMARY_MODEL, LITE_MODEL)
         var emittedAny = false
@@ -358,7 +403,12 @@ class AiMentorService(
             val accumulated = StringBuilder()
             try {
                 withTimeout(60_000L) {
-                    backend.streamChatReply(modelName, chatHistory, userMessage).collect { piece ->
+                    backend.streamChatReply(
+                        modelName = modelName,
+                        systemInstruction = systemAndContext,
+                        history = chatHistory,
+                        userMessage = userMessage
+                    ).collect { piece ->
                         if (piece.isNotEmpty()) {
                             emittedAny = true
                             accumulated.append(piece)

@@ -68,11 +68,19 @@ android {
     unitTests {
       isIncludeAndroidResources = true
       all {
+        it.maxHeapSize = "2048m"
         it.systemProperty(
           "robolectric.dependency.repo.url",
           System.getProperty("robolectric.dependency.repo.url")
             ?: "https://maven-central.storage-download.googleapis.com/maven2"
         )
+        it.testLogging {
+          events("failed", "skipped")
+          exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+          showExceptions = true
+          showCauses = true
+          showStackTraces = true
+        }
       }
     }
   }

@@ -422,6 +422,9 @@ private fun MainAuthenticatedScaffold(
                                 onRefreshSuggestion = {
                                     aiViewModel.refreshDailySuggestion(uiState.tasks, uiState.settings.timezoneId)
                                 },
+                                onForceRefreshSuggestion = {
+                                    aiViewModel.refreshDailySuggestion(uiState.tasks, uiState.settings.timezoneId, force = true)
+                                },
                                 onToggleTask = { plannerViewModel.toggleTaskCompleted(it) },
                                 onQuickFocusToggle = {
                                     focusViewModel.toggleStartPause(uiState.settings.musicDuringFocus)
