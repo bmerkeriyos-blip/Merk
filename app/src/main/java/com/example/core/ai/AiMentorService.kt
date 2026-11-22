@@ -5,10 +5,12 @@ import com.example.data.local.ChatMessageEntity
 import com.example.data.local.PlannerTaskEntity
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.Content
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withTimeout
@@ -87,10 +89,107 @@ sealed interface ParsedAiCommand {
     data object ChatOnly : ParsedAiCommand
 }
 
-class AiMentorService {
+interface ShinobiAiBackend {
+    suspend fun generateContent(
+        modelName: String,
+        promptText: String,
+        jsonSchema: Schema? = null
+    ): String?
 
-    private val chatModel by lazy {
-        Firebase.ai.generativeModel(modelName = "gemini-3.8-flash")
+    suspend fun generateMultimodalContent(
+        modelName: String,
+        promptText: String,
+        images: List<Bitmap>,
+        jsonSchema: Schema
+    ): String?
+
+    fun streamChatReply(
+        modelName: String,
+        history: List<Content>,
+        userMessage: String
+    ): Flow<String>
+}
+
+class FirebaseShinobiAiBackend : ShinobiAiBackend {
+    override suspend fun generateContent(
+        modelName: String,
+        promptText: String,
+        jsonSchema: Schema?
+    ): String? {
+        val model = if (jsonSchema != null) {
+            Firebase.ai.generativeModel(
+                modelName = modelName,
+                generationConfig = generationConfig {
+                    responseMimeType = "application/json"
+                    responseSchema = jsonSchema
+                }
+            )
+        } else {
+            Firebase.ai.generativeModel(modelName = modelName)
+        }
+        return model.generateContent(promptText).text
+    }
+
+    override suspend fun generateMultimodalContent(
+        modelName: String,
+        promptText: String,
+        images: List<Bitmap>,
+        jsonSchema: Schema
+    ): String? {
+        val model = Firebase.ai.generativeModel(
+            modelName = modelName,
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+                responseSchema = jsonSchema
+            }
+        )
+        val promptContent = content {
+            text(promptText)
+            images.forEach { bmp -> image(bmp) }
+        }
+        return model.generateContent(promptContent).text
+    }
+
+    override fun streamChatReply(
+        modelName: String,
+        history: List<Content>,
+        userMessage: String
+    ): Flow<String> = flow {
+        val chat = Firebase.ai.generativeModel(modelName = modelName).startChat(history = history)
+        chat.sendMessageStream(userMessage).collect { chunk ->
+            val piece = chunk.text.orEmpty()
+            if (piece.isNotEmpty()) emit(piece)
+        }
+    }
+}
+
+class AiMentorService(
+    private val backend: ShinobiAiBackend = FirebaseShinobiAiBackend(),
+    private val retryDelayMs: Long = 350L
+) {
+    companion object {
+        const val PRIMARY_MODEL = "gemini-3.8-flash"
+        const val LITE_MODEL = "gemini-3.5-flash-lite"
+
+        internal fun isQuotaOrRateLimitError(t: Throwable): Boolean {
+            var cur: Throwable? = t
+            while (cur != null) {
+                val msg = cur.message.orEmpty().lowercase()
+                if (
+                    msg.contains("429") ||
+                    msg.contains("resource_exhausted") ||
+                    msg.contains("quota") ||
+                    msg.contains("rate limit") ||
+                    msg.contains("too many requests") ||
+                    msg.contains("503") ||
+                    msg.contains("unavailable")
+                ) {
+                    return true
+                }
+                cur = cur.cause
+            }
+            return false
+        }
     }
 
     private val commandSchema = Schema.obj(
@@ -126,16 +225,6 @@ class AiMentorService {
         )
     )
 
-    private val commandModel by lazy {
-        Firebase.ai.generativeModel(
-            modelName = "gemini-3.5-flash-lite",
-            generationConfig = generationConfig {
-                responseMimeType = "application/json"
-                responseSchema = commandSchema
-            }
-        )
-    }
-
     private val timetableSchema = Schema.obj(
         properties = mapOf(
             "events" to Schema.array(
@@ -161,24 +250,29 @@ class AiMentorService {
         )
     )
 
-    private val accurateScanModel by lazy {
-        Firebase.ai.generativeModel(
-            modelName = "gemini-3.8-flash",
-            generationConfig = generationConfig {
-                responseMimeType = "application/json"
-                responseSchema = timetableSchema
+    private suspend fun <T> executeWithQuotaResilience(
+        primaryModel: String,
+        fallbackModel: String?,
+        block: suspend (modelName: String) -> T
+    ): T {
+        val candidates = listOfNotNull(primaryModel, fallbackModel).distinct()
+        var lastError: Throwable? = null
+        for ((idx, modelName) in candidates.withIndex()) {
+            try {
+                return block(modelName)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+                val hasFallback = idx < candidates.lastIndex
+                if (hasFallback && isQuotaOrRateLimitError(e)) {
+                    if (retryDelayMs > 0L) delay(retryDelayMs)
+                    continue
+                }
+                throw e
             }
-        )
-    }
-
-    private val quickScanModel by lazy {
-        Firebase.ai.generativeModel(
-            modelName = "gemini-3.5-flash-lite",
-            generationConfig = generationConfig {
-                responseMimeType = "application/json"
-                responseSchema = timetableSchema
-            }
-        )
+        }
+        throw lastError ?: IllegalStateException("AI request failed.")
     }
 
     suspend fun classifyCommand(
@@ -191,10 +285,11 @@ class AiMentorService {
             User request: "$userPrompt"
         """.trimIndent()
         return try {
-            val response = withTimeout(30_000L) {
-                commandModel.generateContent(prompt)
-            }
-            val raw = response.text ?: return ParsedAiCommand.ChatOnly
+            val raw = withTimeout(30_000L) {
+                executeWithQuotaResilience(LITE_MODEL, PRIMARY_MODEL) { model ->
+                    backend.generateContent(model, prompt, commandSchema)
+                }
+            } ?: return ParsedAiCommand.ChatOnly
             val json = JSONObject(raw)
             when (json.optString("actionType", "CHAT_ONLY")) {
                 "CREATE_TASK" -> {
@@ -255,33 +350,54 @@ class AiMentorService {
             }
         }
 
-        val chat = chatModel.startChat(history = chatHistory)
-        val accumulated = StringBuilder()
-        withTimeout(60_000L) {
-            chat.sendMessageStream(userMessage).collect { chunk ->
-                val piece = chunk.text.orEmpty()
-                if (piece.isNotEmpty()) {
-                    accumulated.append(piece)
-                    emit(accumulated.toString())
+        val modelsToTry = listOf(PRIMARY_MODEL, LITE_MODEL)
+        var emittedAny = false
+        var lastError: Throwable? = null
+
+        for ((index, modelName) in modelsToTry.withIndex()) {
+            val accumulated = StringBuilder()
+            try {
+                withTimeout(60_000L) {
+                    backend.streamChatReply(modelName, chatHistory, userMessage).collect { piece ->
+                        if (piece.isNotEmpty()) {
+                            emittedAny = true
+                            accumulated.append(piece)
+                            emit(accumulated.toString())
+                        }
+                    }
                 }
+                if (accumulated.isBlank()) {
+                    throw IllegalStateException("AI Mentor returned an empty response.")
+                }
+                return@flow
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+                val canFallback = index < modelsToTry.lastIndex && !emittedAny && isQuotaOrRateLimitError(e)
+                if (canFallback) {
+                    if (retryDelayMs > 0L) delay(retryDelayMs)
+                    continue
+                }
+                throw e
             }
         }
-        if (accumulated.isBlank()) {
-            throw IllegalStateException("AI Mentor returned an empty response.")
-        }
+        throw lastError ?: IllegalStateException("AI Mentor returned an empty response.")
     }
 
     suspend fun generateQuickSuggestion(tasks: List<PlannerTaskEntity>, todayIso: String): String {
         val summary = tasks.take(15).joinToString("; ") {
             "${it.dateIso} ${it.title} (${it.category}, rank=${it.missionRank}, done=${it.completed})"
         }.ifBlank { "No tasks scheduled yet." }
-        val response = withTimeout(35_000L) {
-            chatModel.generateContent(
-                "Today is $todayIso. Give ONE warm, spirited 2-sentence anime shinobi sensei study briefing & tip based on these missions: $summary"
-            )
+        val prompt =
+            "Today is $todayIso. Give ONE warm, spirited 2-sentence anime shinobi sensei study briefing & tip based on these missions: $summary"
+        val raw = withTimeout(35_000L) {
+            executeWithQuotaResilience(LITE_MODEL, PRIMARY_MODEL) { model ->
+                backend.generateContent(model, prompt, jsonSchema = null)
+            }
         }
-        return response.text?.trim()?.ifBlank { null }
-            ?: "Review your highest-rank mission first and lock in a 25-minute Focus Dojo block."
+        return raw?.trim()?.ifBlank { null }
+            ?: throw IllegalStateException("AI quick briefing returned empty output.")
     }
 
     suspend fun scanTimetableImages(
@@ -290,24 +406,22 @@ class AiMentorService {
         accurateMode: Boolean
     ): List<ScannedTimetableEvent> {
         require(bitmaps.isNotEmpty()) { "No image or PDF pages provided." }
-        val model = if (accurateMode) accurateScanModel else quickScanModel
-        val promptContent = content {
-            text(
-                """
-                Today's date is $todayIso.
-                Extract all university classes, labs, exams, deadlines, or study sessions visible in this timetable image/document.
-                For recurring weekly classes, resolve dateIso to the next matching date starting from $todayIso and set recurrence to WEEKLY.
-                Assign appropriate category (CLASS, STUDY, ASSIGNMENT, EXAM, DEADLINE) and missionRank (D-S).
-                """.trimIndent()
-            )
-            bitmaps.take(4).forEach { bmp ->
-                image(bmp)
+        val primary = if (accurateMode) PRIMARY_MODEL else LITE_MODEL
+        val fallback = if (accurateMode) LITE_MODEL else PRIMARY_MODEL
+        val promptText = """
+            Today's date is $todayIso.
+            Extract all university classes, labs, exams, deadlines, or study sessions visible in this timetable image/document.
+            For recurring weekly classes, resolve dateIso to the next matching date starting from $todayIso and set recurrence to WEEKLY.
+            Assign appropriate category (CLASS, STUDY, ASSIGNMENT, EXAM, DEADLINE) and missionRank (D-S).
+        """.trimIndent()
+        val images = bitmaps.take(4)
+
+        val jsonText = withTimeout(60_000L) {
+            executeWithQuotaResilience(primary, fallback) { model ->
+                backend.generateMultimodalContent(model, promptText, images, timetableSchema)
             }
-        }
-        val response = withTimeout(60_000L) {
-            model.generateContent(promptContent)
-        }
-        val jsonText = response.text ?: throw IllegalStateException("Scanner returned empty output.")
+        } ?: throw IllegalStateException("Scanner returned empty output.")
+
         val root = JSONObject(jsonText)
         val array = root.optJSONArray("events") ?: return emptyList()
         return (0 until array.length()).map { i ->

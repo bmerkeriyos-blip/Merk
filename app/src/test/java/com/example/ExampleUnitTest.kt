@@ -6,6 +6,11 @@ import com.example.core.common.RankProgression
 import com.example.core.common.ShinobiTimeUtil
 import com.example.core.media.ShinobiSfx
 import com.example.data.local.PlannerTaskEntity
+import com.example.ui.theme.GlassTier
+import com.example.ui.theme.NarutoOrange
+import com.example.ui.theme.ShinobiVisualConfig
+import com.example.ui.theme.ThemeDesignSystem
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,5 +68,36 @@ class ExampleUnitTest {
         assertTrue(csv.contains("Title,Subject,Category"))
         assertTrue(csv.contains("\"Read \"\"Algorithm\"\" Notes, Ch 1\""))
         assertTrue(csv.contains("\"CS301\""))
+    }
+
+    @Test
+    fun `theme design system provides consistent glassmorphism tokens and fallbacks`() {
+        val darkGlass = ShinobiVisualConfig(isDark = true, glassmorphismEnabled = true, batterySaverMode = false)
+        assertEquals(ThemeDesignSystem.HeroBlurRadius, ThemeDesignSystem.blurRadiusFor(GlassTier.HERO, darkGlass))
+        assertEquals(ThemeDesignSystem.DefaultBlurRadius, ThemeDesignSystem.blurRadiusFor(GlassTier.STANDARD, darkGlass))
+        assertEquals(ThemeDesignSystem.SubtleBlurRadius, ThemeDesignSystem.blurRadiusFor(GlassTier.SUBTLE, darkGlass))
+        assertEquals(ThemeDesignSystem.FloatingBarBlurRadius, ThemeDesignSystem.blurRadiusFor(GlassTier.FLOATING_BAR, darkGlass))
+
+        assertTrue(ThemeDesignSystem.containerAlphaFor(GlassTier.HERO, darkGlass) > ThemeDesignSystem.containerAlphaFor(GlassTier.SUBTLE, darkGlass))
+        assertTrue(ThemeDesignSystem.TranslucentDarkBackground.alpha < 1f)
+
+        val batterySaver = darkGlass.copy(batterySaverMode = true)
+        assertEquals(0.dp, ThemeDesignSystem.blurRadiusFor(GlassTier.HERO, batterySaver))
+
+        val strokeIdle = ThemeDesignSystem.borderStroke(NarutoOrange, darkGlass, GlassTier.STANDARD, glowActive = false)
+        val strokeActive = ThemeDesignSystem.borderStroke(NarutoOrange, darkGlass, GlassTier.STANDARD, glowActive = true)
+        assertEquals(ThemeDesignSystem.DefaultBorderWidth, strokeIdle.width)
+        assertEquals(ThemeDesignSystem.ActiveBorderWidth, strokeActive.width)
+
+        val globalGlowOn = darkGlass.copy(globalGlowEnabled = true, glowIntensity = 0.8f)
+        val globalGlowOff = darkGlass.copy(globalGlowEnabled = false, glowIntensity = 0.8f)
+        assertTrue(ThemeDesignSystem.glowHaloAlphaFor(GlassTier.STANDARD, globalGlowOn, glowActive = false) > 0f)
+        assertEquals(0f, ThemeDesignSystem.glowHaloAlphaFor(GlassTier.STANDARD, globalGlowOff, glowActive = false), 0.0001f)
+        assertTrue(ThemeDesignSystem.glowHaloAlphaFor(GlassTier.HERO, globalGlowOn, glowActive = true) >
+            ThemeDesignSystem.glowHaloAlphaFor(GlassTier.STANDARD, globalGlowOn, glowActive = false))
+
+        val lightMode = globalGlowOn.copy(isDark = false)
+        assertEquals(0f, ThemeDesignSystem.glowHaloAlphaFor(GlassTier.HERO, lightMode, glowActive = true), 0.0001f)
+        assertEquals(0f, ThemeDesignSystem.glowHaloAlphaFor(GlassTier.HERO, batterySaver.copy(globalGlowEnabled = true), glowActive = true), 0.0001f)
     }
 }

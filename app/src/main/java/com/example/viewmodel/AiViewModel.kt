@@ -78,6 +78,10 @@ class AiViewModel(
     private val _pendingDeleteConfirmation = MutableStateFlow<PendingDestructiveAction?>(null)
     val pendingDeleteConfirmation: StateFlow<PendingDestructiveAction?> = _pendingDeleteConfirmation.asStateFlow()
 
+    private var lastSuggestionSignature: String? = null
+    private var lastSuggestionFetchMs: Long = 0L
+    private var suggestionInFlight: Boolean = false
+
     fun selectOrCreateChat(personality: AiPersonality = AiPersonality.MENTOR) {
         viewModelScope.launch {
             val currentChats = chats.value
@@ -309,17 +313,34 @@ class AiViewModel(
         }
     }
 
-    fun refreshDailySuggestion(tasks: List<PlannerTaskEntity>, timezoneId: String) {
+    fun refreshDailySuggestion(
+        tasks: List<PlannerTaskEntity>,
+        timezoneId: String,
+        force: Boolean = false
+    ) {
+        val todayIso = ShinobiTimeUtil.nowZoned(timezoneId)
+            .toLocalDate()
+            .format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val signature = "$todayIso|${tasks.size}|${tasks.count { it.completed }}|${tasks.firstOrNull { !it.completed }?.id.orEmpty()}"
+        val nowMs = System.currentTimeMillis()
+        if (!force) {
+            if (suggestionInFlight) return
+            if (signature == lastSuggestionSignature && _dailySuggestion.value != null) return
+            if (_dailySuggestion.value != null && nowMs - lastSuggestionFetchMs < 60_000L) return
+        }
+
+        suggestionInFlight = true
         viewModelScope.launch {
             try {
-                val todayIso = ShinobiTimeUtil.nowZoned(timezoneId)
-                    .toLocalDate()
-                    .format(DateTimeFormatter.ISO_LOCAL_DATE)
                 _dailySuggestion.value = aiService.generateQuickSuggestion(tasks, todayIso)
+                lastSuggestionSignature = signature
+                lastSuggestionFetchMs = System.currentTimeMillis()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // Keep quiet on dashboard if offline
+                // Keep quiet on dashboard if offline or rate-limited
+            } finally {
+                suggestionInFlight = false
             }
         }
     }

@@ -1,8 +1,21 @@
 package com.example.ui.progress
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,29 +27,47 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Timeline
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
-import com.example.core.common.ShinobiTimeUtil
 import com.example.core.common.MissionRank
 import com.example.core.common.RankProgression
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.common.TaskCategory
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.SubtaskEntity
+import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
 import com.example.ui.components.RankBadgeChip
-import com.example.ui.theme.*
+import com.example.ui.components.XpProgressBar
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraGreen
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.GoldRankS
+import com.example.ui.theme.HolographicPurple
+import com.example.ui.theme.LocalShinobiVisuals
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
+import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.ThemeDesignSystem
 import com.example.viewmodel.PlannerUiState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -111,26 +142,65 @@ fun ProgressScreen(
             Text(
                 text = "SHINOBI PATH & PROGRESS",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
-            Image(
-                painter = painterResource(id = R.drawable.img_scroll_banner),
-                contentDescription = "Shinobi Training Scroll",
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                contentScale = ContentScale.Crop
-            )
+                    .height(114.dp)
+                    .clip(RoundedCornerShape(18.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_scroll_banner),
+                    contentDescription = "Shinobi Training Scroll",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    MidnightNavy.copy(alpha = 0.72f),
+                                    Color.Transparent,
+                                    MidnightNavy.copy(alpha = 0.55f)
+                                )
+                            )
+                        )
+                        .padding(14.dp),
+                    contentAlignment = Alignment.BottomStart
+                ) {
+                    Text(
+                        text = "${rankInfo.title.uppercase()} • LEVEL ${rankInfo.level}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = GoldRankS,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
-        // Rank Progression Card & Ladder
+        // RPG Rank Progression Hero Card
         item {
-            HoloCard(accentColor = GoldRankS) {
+            HoloCard(
+                accentColor = NarutoOrange,
+                glassTier = GlassTier.HERO,
+                glowActive = true
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.MilitaryTech, contentDescription = null, tint = GoldRankS, modifier = Modifier.size(28.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(GoldRankS.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.MilitaryTech, contentDescription = null, tint = GoldRankS, modifier = Modifier.size(28.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
                             text = "Lv.${rankInfo.level}  ${rankInfo.title}",
@@ -145,50 +215,56 @@ fun ProgressScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                LinearProgressIndicator(
-                    progress = { rankInfo.progressFraction },
-                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                    color = GoldRankS,
-                    trackColor = visuals.primaryAccent.copy(alpha = 0.16f)
+                Spacer(modifier = Modifier.height(12.dp))
+                XpProgressBar(
+                    progress = rankInfo.progressFraction,
+                    startColor = NarutoOrange,
+                    endColor = GoldRankS,
+                    height = 9.dp
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 RANK_LADDER.forEach { (reqLv, title) ->
                     val reached = rankInfo.level >= reqLv
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             text = "Lv.$reqLv  $title",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (reached) JadeEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (reached) ChakraGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = if (reached) FontWeight.SemiBold else FontWeight.Normal
                         )
                         Text(
                             text = if (reached) "UNLOCKED" else "LOCKED",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (reached) JadeEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (reached) ChakraGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
         }
 
-        // Weekly Intelligence Report + Canvas Chart
+        // Weekly Intelligence Report + Neon Gradient Chart
         item {
-            HoloCard(accentColor = visuals.primaryAccent) {
+            HoloCard(accentColor = ChakraCyan) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Timeline, contentDescription = null, tint = visuals.primaryAccent)
+                    Icon(Icons.Filled.Timeline, contentDescription = null, tint = ChakraCyan)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("WEEKLY TRAINING REPORT", style = MaterialTheme.typography.labelLarge, color = visuals.primaryAccent)
+                    Text(
+                        text = "WEEKLY TRAINING REPORT",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = ChakraCyan,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    StatMiniBlock("Productivity", "$productivityScore/100", visuals.primaryAccent)
-                    StatMiniBlock("Completed", "$completedTasks", JadeEmerald)
-                    StatMiniBlock("Overdue", "$missedPastTasks", CrimsonAlert)
-                    StatMiniBlock("Focus Hrs", String.format("%.1fh", totalFocusMins / 60f), ChakraOrange)
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatMiniBlock("Productivity", "$productivityScore/100", ChakraCyan, Modifier.weight(1f))
+                    StatMiniBlock("Completed", "$completedTasks", ChakraGreen, Modifier.weight(1f))
+                    StatMiniBlock("Overdue", "$missedPastTasks", CrimsonAlert, Modifier.weight(1f))
+                    StatMiniBlock("Focus Hrs", String.format("%.1fh", totalFocusMins / 60f), NarutoOrange, Modifier.weight(1f))
                 }
 
                 if (subjectMinutes.isNotEmpty()) {
@@ -199,31 +275,37 @@ fun ProgressScreen(
                     Canvas(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height((subjectMinutes.size * 26).dp)
+                            .height((subjectMinutes.size * 28).dp)
                     ) {
                         val rowH = size.height / subjectMinutes.size
                         subjectMinutes.forEachIndexed { idx, (_, mins) ->
                             val frac = mins.toFloat() / maxMins.toFloat()
                             val barW = size.width * 0.92f * frac
-                            val y = idx * rowH + rowH * 0.25f
+                            val y = idx * rowH + rowH * 0.22f
                             drawRoundRect(
-                                color = visuals.primaryAccent.copy(alpha = 0.2f),
+                                color = ChakraCyan.copy(alpha = 0.14f),
                                 topLeft = Offset(0f, y),
-                                size = Size(size.width * 0.92f, rowH * 0.5f),
-                                cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                                size = Size(size.width * 0.92f, rowH * 0.54f),
+                                cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx())
                             )
                             drawRoundRect(
-                                color = if (idx % 2 == 0) visuals.primaryAccent else ChakraOrange,
+                                brush = Brush.horizontalGradient(
+                                    colors = if (idx % 2 == 0) {
+                                        listOf(ChakraCyan, HolographicPurple)
+                                    } else {
+                                        listOf(NarutoOrange, GoldRankS)
+                                    }
+                                ),
                                 topLeft = Offset(0f, y),
-                                size = Size(barW.coerceAtLeast(10f), rowH * 0.5f),
-                                cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                                size = Size(barW.coerceAtLeast(12f), rowH * 0.54f),
+                                cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx())
                             )
                         }
                     }
                     subjectMinutes.forEach { (subj, mins) ->
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(subj, style = MaterialTheme.typography.labelSmall)
-                            Text("${mins}m", style = MaterialTheme.typography.labelSmall, color = visuals.primaryAccent)
+                            Text("${mins}m", style = MaterialTheme.typography.labelSmall, color = ChakraCyan, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -236,7 +318,12 @@ fun ProgressScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.School, contentDescription = null, tint = CrimsonAlert)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("EXAM COUNTDOWN & REVISION GENERATOR", style = MaterialTheme.typography.labelLarge, color = CrimsonAlert)
+                    Text(
+                        text = "EXAM COUNTDOWN & REVISION GENERATOR",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = CrimsonAlert,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 if (upcomingExams.isEmpty()) {
@@ -249,10 +336,21 @@ fun ProgressScreen(
                     upcomingExams.take(4).forEach { exam ->
                         val examDate = runCatching { LocalDate.parse(exam.dateIso) }.getOrNull() ?: today
                         val daysLeft = ChronoUnit.DAYS.between(today, examDate).coerceAtLeast(0)
+                        val examAccent = if (daysLeft <= 3) CrimsonAlert else GoldRankS
+                        val examStyle = ThemeDesignSystem.glassStyle(
+                            accentColor = examAccent,
+                            tier = GlassTier.SUBTLE,
+                            glowActive = daysLeft <= 3,
+                            cornerRadius = ThemeDesignSystem.CompactCornerRadius
+                        )
                         Surface(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .ShinobiGlassModifier(style = examStyle, showSpecularEdge = false),
+                            shape = examStyle.shape,
+                            color = Color.Transparent,
+                            tonalElevation = examStyle.tonalElevation
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
@@ -263,7 +361,7 @@ fun ProgressScreen(
                                     Text(
                                         "${exam.subjectName} • ${exam.dateIso} • $daysLeft days remaining",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (daysLeft <= 3) CrimsonAlert else GoldRankS
+                                        color = examAccent
                                     )
                                 }
                                 OutlinedButton(
@@ -303,14 +401,15 @@ fun ProgressScreen(
 
         // Achievements Grid
         item {
-            HoloCard(accentColor = ArcaneViolet) {
+            HoloCard(accentColor = HolographicPurple) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = GoldRankS)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "ACHIEVEMENTS (${uiState.achievements.count { it.unlocked }}/${uiState.achievements.size})",
                         style = MaterialTheme.typography.labelLarge,
-                        color = GoldRankS
+                        color = GoldRankS,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -319,12 +418,23 @@ fun ProgressScreen(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (ach.unlocked) Icons.Filled.EmojiEvents else Icons.Filled.Lock,
-                            contentDescription = null,
-                            tint = if (ach.unlocked) GoldRankS else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (ach.unlocked) GoldRankS.copy(alpha = 0.16f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (ach.unlocked) Icons.Filled.EmojiEvents else Icons.Filled.Lock,
+                                contentDescription = null,
+                                tint = if (ach.unlocked) GoldRankS else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -337,7 +447,8 @@ fun ProgressScreen(
                         Text(
                             text = if (ach.unlocked) "+${ach.xpBonus} XP" else "Locked",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (ach.unlocked) JadeEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (ach.unlocked) ChakraGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -350,11 +461,11 @@ fun ProgressScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.History, contentDescription = null, tint = visuals.primaryAccent)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Recent Mission Completion Log", style = MaterialTheme.typography.titleSmall)
+                    Text("Recent Mission Completion Log", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 }
             }
             items(uiState.history.take(8), key = { it.id }) { h ->
-                HoloCard(contentPadding = PaddingValues(12.dp)) {
+                HoloCard(accentColor = ChakraGreen, glassTier = GlassTier.SUBTLE, contentPadding = PaddingValues(12.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(h.taskTitle, fontWeight = FontWeight.Medium)
@@ -362,7 +473,7 @@ fun ProgressScreen(
                         }
                         RankBadgeChip(h.missionRank)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("+${h.xpEarned} XP", color = JadeEmerald, fontWeight = FontWeight.Bold)
+                        Text("+${h.xpEarned} XP", color = ChakraGreen, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -373,9 +484,29 @@ fun ProgressScreen(
 }
 
 @Composable
-private fun StatMiniBlock(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun StatMiniBlock(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val style = ThemeDesignSystem.glassStyle(
+        accentColor = color,
+        tier = GlassTier.SUBTLE,
+        cornerRadius = ThemeDesignSystem.CompactCornerRadius,
+        tintColor = color
+    )
+    Surface(
+        modifier = modifier.ShinobiGlassModifier(style = style, showSpecularEdge = false),
+        shape = style.shape,
+        color = Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(value, style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }

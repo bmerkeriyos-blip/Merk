@@ -3,7 +3,18 @@ package com.example.ui.schedule
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -20,12 +31,36 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -33,15 +68,26 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.core.common.ShinobiTimeUtil
+import com.example.core.common.TaskCategory
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.SubjectEntity
 import com.example.data.local.SubtaskEntity
 import com.example.data.repository.TaskConflict
 import com.example.data.repository.TimeSlot
+import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
 import com.example.ui.components.RankBadgeChip
 import com.example.ui.components.ShurikenCheckbox
-import com.example.ui.theme.*
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraGreen
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.HolographicPurple
+import com.example.ui.theme.JadeEmerald
+import com.example.ui.theme.LocalShinobiVisuals
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
+import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.ThemeDesignSystem
 import com.example.viewmodel.PlannerUiState
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -76,9 +122,10 @@ fun ScheduleScreen(
 ) {
     val visuals = LocalShinobiVisuals.current
     val settings = uiState.settings
-    val today = remember(settings.timezoneId) {
-        ShinobiTimeUtil.nowZoned(settings.timezoneId).toLocalDate()
-    }
+    val nowZoned = remember(settings.timezoneId) { ShinobiTimeUtil.nowZoned(settings.timezoneId) }
+    val today = nowZoned.toLocalDate()
+    val nowMinutes = nowZoned.hour * 60 + nowZoned.minute
+
     var selectedDate by remember { mutableStateOf(today) }
     val selectedIso = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
@@ -126,7 +173,7 @@ fun ScheduleScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header Toolbar
+            // Futuristic Header Toolbar
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -137,32 +184,34 @@ fun ScheduleScreen(
                         Text(
                             text = "SHINOBI SCHEDULE",
                             style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = ShinobiTimeUtil.formatDateHeader(selectedDate),
                             style = MaterialTheme.typography.bodySmall,
-                            color = visuals.primaryAccent
+                            color = ChakraCyan,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
-                    Row {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         IconButton(
                             onClick = { showSubjectsDialog = true },
-                            modifier = Modifier.testTag("manage_subjects_button")
+                            modifier = Modifier.size(48.dp).testTag("manage_subjects_button")
                         ) {
-                            Icon(Icons.Filled.Book, contentDescription = "Manage Subjects", tint = ChakraOrange)
+                            Icon(Icons.Filled.Book, contentDescription = "Manage Subjects", tint = NarutoOrange)
                         }
                         IconButton(
                             onClick = onOpenScanner,
-                            modifier = Modifier.testTag("schedule_scan_button")
+                            modifier = Modifier.size(48.dp).testTag("schedule_scan_button")
                         ) {
-                            Icon(Icons.Filled.DocumentScanner, contentDescription = "Scan Timetable", tint = visuals.primaryAccent)
+                            Icon(Icons.Filled.DocumentScanner, contentDescription = "Scan Timetable", tint = ChakraCyan)
                         }
                     }
                 }
             }
 
-            // View Switcher (Daily / Weekly / Monthly / Agenda)
+            // Segmented View Switcher (Daily / Weekly / Monthly / Agenda / Free Time)
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(ScheduleViewMode.entries) { mode ->
@@ -184,20 +233,32 @@ fun ScheduleScreen(
                 }
             }
 
-            // Date Navigator Strip or Monthly Calendar Grid
+            // Glass Date Navigator Strip or Monthly Calendar Grid
             item {
                 when (viewMode) {
                     ScheduleViewMode.MONTHLY -> MonthlyCalendarGrid(
                         selectedDate = selectedDate,
                         tasks = uiState.tasks,
-                        accentColor = visuals.primaryAccent,
+                        accentColor = ChakraCyan,
                         onSelectDate = { selectedDate = it }
                     )
                     else -> WeeklyStripSelector(
                         selectedDate = selectedDate,
                         tasks = uiState.tasks,
-                        accentColor = visuals.primaryAccent,
+                        accentColor = ChakraCyan,
                         onSelectDate = { selectedDate = it }
+                    )
+                }
+            }
+
+            // Holographic Current-Time Timeline Indicator when viewing Today
+            if (viewMode == ScheduleViewMode.DAILY && selectedDate == today) {
+                item {
+                    CurrentTimeTimelineBar(
+                        nowLabel = ShinobiTimeUtil.formatTime(nowMinutes, settings.use24HourClock),
+                        ethLabel = if (settings.showEthiopianTime) {
+                            ShinobiTimeUtil.formatEthiopianClock(nowZoned.toLocalTime())
+                        } else null
                     )
                 }
             }
@@ -205,7 +266,7 @@ fun ScheduleScreen(
             // Conflict Detector Banner
             if (conflicts.isNotEmpty()) {
                 item {
-                    HoloCard(accentColor = CrimsonAlert) {
+                    HoloCard(accentColor = CrimsonAlert, glowActive = true) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Warning, contentDescription = "Conflict", tint = CrimsonAlert)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -231,11 +292,12 @@ fun ScheduleScreen(
             // Free-time Slots Card
             if (showFreeSlots) {
                 item {
-                    HoloCard(accentColor = JadeEmerald) {
+                    HoloCard(accentColor = ChakraGreen) {
                         Text(
-                            text = "FREE STUDY SLOTS (${selectedIso})",
+                            text = "FREE STUDY SLOTS ($selectedIso)",
                             style = MaterialTheme.typography.labelLarge,
-                            color = JadeEmerald
+                            color = ChakraGreen,
+                            fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         if (freeSlots.isEmpty()) {
@@ -270,18 +332,27 @@ fun ScheduleScreen(
             }
 
             // Task list depending on Daily / Weekly / Agenda / Monthly
-
             if (displayedTasks.isEmpty()) {
                 item {
-                    HoloCard(onClick = {
-                        editingTask = null
-                        showTaskSheet = true
-                    }) {
-                        Text(
-                            text = "No missions scheduled for this view. Tap + to create a mission or scan your timetable.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    HoloCard(
+                        accentColor = ChakraCyan,
+                        glassTier = GlassTier.SUBTLE,
+                        onClick = {
+                            editingTask = null
+                            showTaskSheet = true
+                        }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Filled.Schedule, contentDescription = null, tint = ChakraCyan)
+                            Text(
+                                text = "No missions scheduled for this view. Tap + to create a mission or scan your timetable.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             } else {
@@ -306,7 +377,7 @@ fun ScheduleScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(84.dp)) }
+            item { Spacer(modifier = Modifier.height(92.dp)) }
         }
 
         FloatingActionButton(
@@ -352,6 +423,55 @@ fun ScheduleScreen(
 }
 
 @Composable
+private fun CurrentTimeTimelineBar(
+    nowLabel: String,
+    ethLabel: String?
+) {
+    val badgeStyle = ThemeDesignSystem.glassStyle(
+        accentColor = NarutoOrange,
+        tier = GlassTier.SUBTLE,
+        glowActive = true,
+        cornerRadius = 10.dp,
+        tintColor = NarutoOrange
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.ShinobiGlassModifier(style = badgeStyle, showSpecularEdge = false),
+            shape = badgeStyle.shape,
+            color = Color.Transparent
+        ) {
+            Text(
+                text = if (ethLabel != null) "NOW $nowLabel • $ethLabel" else "NOW $nowLabel",
+                style = MaterialTheme.typography.labelSmall,
+                color = NarutoOrange,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(NarutoOrange)
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(2.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(NarutoOrange, ChakraCyan.copy(alpha = 0.6f), Color.Transparent)
+                    )
+                )
+        )
+    }
+}
+
+@Composable
 private fun WeeklyStripSelector(
     selectedDate: LocalDate,
     tasks: List<PlannerTaskEntity>,
@@ -361,54 +481,78 @@ private fun WeeklyStripSelector(
     val weekStart = remember(selectedDate) { selectedDate.with(DayOfWeek.MONDAY) }
     val days = remember(weekStart) { (0..6).map { weekStart.plusDays(it.toLong()) } }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+    HoloCard(
+        accentColor = accentColor,
+        glassTier = GlassTier.SUBTLE,
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
     ) {
-        IconButton(onClick = { onSelectDate(selectedDate.minusWeeks(1)) }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous Week")
-        }
-        days.forEach { day ->
-            val iso = day.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val isSelected = day == selectedDate
-            val hasTasks = tasks.any { it.dateIso == iso && !it.completed }
-            Surface(
-                onClick = { onSelectDate(day) },
-                modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = if (isSelected) accentColor.copy(alpha = 0.22f) else Color.Transparent,
-                border = if (isSelected) BorderStroke(1.dp, accentColor) else null
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(
+                onClick = { onSelectDate(selectedDate.minusWeeks(1)) },
+                modifier = Modifier.size(40.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous Week")
+            }
+            days.forEach { day ->
+                val iso = day.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val isSelected = day == selectedDate
+                val hasTasks = tasks.any { it.dateIso == iso && !it.completed }
+                val selectedStyle = ThemeDesignSystem.glassStyle(
+                    accentColor = accentColor,
+                    tier = GlassTier.STANDARD,
+                    glowActive = true,
+                    cornerRadius = ThemeDesignSystem.CompactCornerRadius,
+                    tintColor = accentColor
+                )
+                Surface(
+                    onClick = { onSelectDate(day) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 2.dp)
+                        .then(
+                            if (isSelected) Modifier.ShinobiGlassModifier(style = selectedStyle, showSpecularEdge = false)
+                            else Modifier
+                        ),
+                    shape = selectedStyle.shape,
+                    color = Color.Transparent
                 ) {
-                    Text(
-                        text = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).take(2),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = day.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (hasTasks) {
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 2.dp)
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(ChakraOrange)
+                    Column(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).take(2),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Text(
+                            text = day.dayOfMonth.toString(),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (hasTasks) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 3.dp)
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(NarutoOrange)
+                            )
+                        }
                     }
                 }
             }
-        }
-        IconButton(onClick = { onSelectDate(selectedDate.plusWeeks(1)) }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Week")
+            IconButton(
+                onClick = { onSelectDate(selectedDate.plusWeeks(1)) },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Week")
+            }
         }
     }
 }
@@ -425,7 +569,7 @@ private fun MonthlyCalendarGrid(
     val leadingBlanks = (firstDay.dayOfWeek.value - 1)
     val totalDays = ym.lengthOfMonth()
 
-    HoloCard {
+    HoloCard(accentColor = accentColor) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -453,7 +597,7 @@ private fun MonthlyCalendarGrid(
                         modifier = Modifier
                             .weight(1f)
                             .height(42.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(if (d == selectedDate) accentColor.copy(alpha = 0.25f) else Color.Transparent)
                             .clickable(enabled = d != null) { d?.let(onSelectDate) },
                         contentAlignment = Alignment.Center
@@ -472,7 +616,7 @@ private fun MonthlyCalendarGrid(
                                         modifier = Modifier
                                             .size(4.dp)
                                             .clip(CircleShape)
-                                            .background(ChakraOrange)
+                                            .background(NarutoOrange)
                                     )
                                 }
                             }
@@ -482,6 +626,15 @@ private fun MonthlyCalendarGrid(
             }
         }
     }
+}
+
+private fun categoryAccentColor(categoryCode: String): Color = when (categoryCode.uppercase()) {
+    TaskCategory.CLASS.code -> ChakraCyan
+    TaskCategory.STUDY.code -> HolographicPurple
+    TaskCategory.ASSIGNMENT.code -> NarutoOrange
+    TaskCategory.EXAM.code, TaskCategory.DEADLINE.code -> CrimsonAlert
+    TaskCategory.PERSONAL.code -> ChakraGreen
+    else -> ChakraCyan
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -515,8 +668,9 @@ private fun SwipeableTaskRow(
         }
     )
 
-    val tagColor = remember(task.colorHex) {
-        runCatching { Color(android.graphics.Color.parseColor(task.colorHex)) }.getOrElse { NeonCyan }
+    val tagColor = remember(task.colorHex, task.category) {
+        runCatching { Color(android.graphics.Color.parseColor(task.colorHex)) }
+            .getOrElse { categoryAccentColor(task.category) }
     }
 
     SwipeToDismissBox(
@@ -527,7 +681,7 @@ private fun SwipeableTaskRow(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(bg)
                     .padding(horizontal = 20.dp),
                 contentAlignment = if (isCompleting) Alignment.CenterStart else Alignment.CenterEnd
@@ -542,21 +696,31 @@ private fun SwipeableTaskRow(
     ) {
         HoloCard(
             accentColor = if (task.completed) JadeEmerald else tagColor,
+            glassTier = GlassTier.STANDARD,
             onClick = onEdit,
             contentPadding = PaddingValues(12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(40.dp)
+                        .clip(CircleShape)
+                        .background(if (task.completed) JadeEmerald else tagColor)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
                 ShurikenCheckbox(
                     checked = task.completed,
                     onToggle = onToggleComplete,
                     accentColor = tagColor,
                     modifier = Modifier.testTag("task_complete_${task.id}")
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = task.title,
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis

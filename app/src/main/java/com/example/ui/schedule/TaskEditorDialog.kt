@@ -26,6 +26,7 @@ import com.example.core.common.*
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.SubjectEntity
 import com.example.data.local.SubtaskEntity
+import com.example.ui.components.GlassTier
 import com.example.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -58,13 +59,17 @@ fun TaskEditorModalSheet(
     var location by remember { mutableStateOf(existingTask?.location.orEmpty()) }
     var reminderCsv by remember { mutableStateOf(existingTask?.reminderOffsetsCsv ?: "10") }
     var selectedColorHex by remember { mutableStateOf(existingTask?.colorHex ?: category.defaultColorHex) }
+    var use24HourLocal by remember(use24HourClock) { mutableStateOf(use24HourClock) }
+    var pickerTarget by remember { mutableStateOf<String?>(null) }
 
     var subtasks by remember { mutableStateOf(existingSubtasks) }
     var newSubtaskTitle by remember { mutableStateOf("") }
 
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
+        sheetState = sheetState,
+        containerColor = if (LocalShinobiVisuals.current.isDark) HoloSurfaceElevated else MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -171,31 +176,60 @@ fun TaskEditorModalSheet(
                 modifier = Modifier.fillMaxWidth().testTag("task_date_input")
             )
 
-            // Start & End Time quick steppers
+            // Plan Time Setting with AM/PM & Custom TimePicker
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Plan Time (Custom AM / PM)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(
+                        selected = !use24HourLocal,
+                        onClick = { use24HourLocal = false },
+                        label = { Text("AM / PM") },
+                        modifier = Modifier.testTag("task_time_format_am_pm")
+                    )
+                    FilterChip(
+                        selected = use24HourLocal,
+                        onClick = { use24HourLocal = true },
+                        label = { Text("24h") },
+                        modifier = Modifier.testTag("task_time_format_24h")
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 TimeStepperCard(
                     label = "Start Time",
+                    tagPrefix = "start",
                     minutes = startMinutes,
-                    use24Hour = use24HourClock,
+                    use24Hour = use24HourLocal,
                     onChange = { next ->
-                        startMinutes = next.coerceIn(0, 23 * 60 + 30)
+                        startMinutes = next.coerceIn(0, 1424)
                         if (endMinutes <= startMinutes) {
-                            endMinutes = (startMinutes + 60).coerceAtMost(1439)
+                            endMinutes = (startMinutes + 30).coerceAtMost(1439)
                         }
                     },
-                    modifier = Modifier.weight(1f)
+                    onOpenPicker = { pickerTarget = "START" },
+                    modifier = Modifier.fillMaxWidth()
                 )
                 TimeStepperCard(
                     label = "End Time",
+                    tagPrefix = "end",
                     minutes = endMinutes,
-                    use24Hour = use24HourClock,
+                    use24Hour = use24HourLocal,
                     onChange = { next ->
                         endMinutes = next.coerceIn(startMinutes + 15, 1439)
                     },
-                    modifier = Modifier.weight(1f)
+                    onOpenPicker = { pickerTarget = "END" },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
@@ -266,7 +300,7 @@ fun TaskEditorModalSheet(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("Tag Color:", style = MaterialTheme.typography.labelMedium)
-                listOf("#00E5FF", "#FF6D00", "#9D4EDD", "#00E676", "#FFD600", "#FF3D5A").forEach { hex ->
+                listOf("#55D9FF", "#FF8C32", "#A879FF", "#45E6A0", "#FFCF4A", "#FF4B6E").forEach { hex ->
                     val parsed = Color(android.graphics.Color.parseColor(hex))
                     val selected = selectedColorHex.equals(hex, ignoreCase = true)
                     Box(
@@ -374,36 +408,157 @@ fun TaskEditorModalSheet(
             }
         }
     }
+
+    pickerTarget?.let { target ->
+        val initialMinutes = if (target == "START") startMinutes else endMinutes
+        val pickerState = rememberTimePickerState(
+            initialHour = (initialMinutes / 60).coerceIn(0, 23),
+            initialMinute = (initialMinutes % 60).coerceIn(0, 59),
+            is24Hour = use24HourLocal
+        )
+        AlertDialog(
+            onDismissRequest = { pickerTarget = null },
+            title = {
+                Text(
+                    text = if (target == "START") "Set Plan Start Time" else "Set Plan End Time",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TimePicker(state = pickerState)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val pickedMinutes = pickerState.hour * 60 + pickerState.minute
+                        if (target == "START") {
+                            startMinutes = pickedMinutes.coerceIn(0, 1424)
+                            if (endMinutes <= startMinutes) {
+                                endMinutes = (startMinutes + 30).coerceAtMost(1439)
+                            }
+                        } else {
+                            endMinutes = pickedMinutes.coerceIn(startMinutes + 15, 1439)
+                        }
+                        pickerTarget = null
+                    },
+                    modifier = Modifier.testTag("confirm_time_picker_button")
+                ) {
+                    Text("Set Time")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pickerTarget = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun TimeStepperCard(
     label: String,
+    tagPrefix: String,
     minutes: Int,
     use24Hour: Boolean,
     onChange: (Int) -> Unit,
+    onOpenPicker: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val visuals = LocalShinobiVisuals.current
+    val style = ThemeDesignSystem.glassStyle(
+        accentColor = visuals.primaryAccent,
+        tier = GlassTier.SUBTLE,
+        glowActive = true,
+        cornerRadius = ThemeDesignSystem.CompactCornerRadius
+    )
+    val clamped = minutes.coerceIn(0, 1439)
+    val isPm = clamped >= 12 * 60
     Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+        modifier = modifier.ShinobiGlassModifier(style = style, showSpecularEdge = false),
+        shape = style.shape,
+        color = Color.Transparent,
+        border = null,
+        tonalElevation = style.tonalElevation
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = ShinobiTimeUtil.formatTime(minutes, use24Hour),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { onChange(minutes - 30) }) { Text("-30m") }
-                TextButton(onClick = { onChange(minutes + 30) }) { Text("+30m") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = ShinobiTimeUtil.formatTime(clamped, use24Hour),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.testTag("${tagPrefix}_time_display")
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = !isPm,
+                        onClick = {
+                            val next = if (isPm) clamped - 12 * 60 else clamped
+                            onChange(next)
+                        },
+                        label = { Text("AM") },
+                        modifier = Modifier.testTag("${tagPrefix}_time_am")
+                    )
+                    FilterChip(
+                        selected = isPm,
+                        onClick = {
+                            val next = if (!isPm) clamped + 12 * 60 else clamped
+                            onChange(next)
+                        },
+                        label = { Text("PM") },
+                        modifier = Modifier.testTag("${tagPrefix}_time_pm")
+                    )
+                    OutlinedButton(
+                        onClick = onOpenPicker,
+                        modifier = Modifier.height(48.dp).testTag("pick_${tagPrefix}_time_button"),
+                        contentPadding = PaddingValues(horizontal = 10.dp)
+                    ) {
+                        Text("Pick")
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { onChange(clamped - 60) },
+                    modifier = Modifier.weight(1f).height(48.dp).testTag("${tagPrefix}_hour_minus"),
+                    contentPadding = PaddingValues(0.dp)
+                ) { Text("-1h") }
+                OutlinedButton(
+                    onClick = { onChange(clamped + 60) },
+                    modifier = Modifier.weight(1f).height(48.dp).testTag("${tagPrefix}_hour_plus"),
+                    contentPadding = PaddingValues(0.dp)
+                ) { Text("+1h") }
+                OutlinedButton(
+                    onClick = { onChange(clamped - 5) },
+                    modifier = Modifier.weight(1f).height(48.dp).testTag("${tagPrefix}_min_minus"),
+                    contentPadding = PaddingValues(0.dp)
+                ) { Text("-5m") }
+                OutlinedButton(
+                    onClick = { onChange(clamped + 5) },
+                    modifier = Modifier.weight(1f).height(48.dp).testTag("${tagPrefix}_min_plus"),
+                    contentPadding = PaddingValues(0.dp)
+                ) { Text("+5m") }
             }
         }
     }

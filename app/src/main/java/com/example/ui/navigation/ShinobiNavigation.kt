@@ -4,11 +4,40 @@ import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -18,15 +47,38 @@ import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -41,6 +93,7 @@ import com.example.core.ai.AiPersonality
 import com.example.ui.ai.AiMentorScreen
 import com.example.ui.ai.TimetableScannerScreen
 import com.example.ui.components.FloatingAiOrb
+import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
 import com.example.ui.components.RankUpCelebrationOverlay
 import com.example.ui.components.ShinobiWallpaperBackdrop
@@ -50,7 +103,21 @@ import com.example.ui.onboarding.OnboardingScreen
 import com.example.ui.progress.ProgressScreen
 import com.example.ui.schedule.ScheduleScreen
 import com.example.ui.settings.SettingsScreen
-import com.example.ui.theme.*
+import com.example.ui.theme.AppearanceMode
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraOrange
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.CyberTextPrimary
+import com.example.ui.theme.GlassWhite
+import com.example.ui.theme.HoloSurfaceElevated
+import com.example.ui.theme.HolographicPurple
+import com.example.ui.theme.LocalShinobiVisuals
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
+import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.ShinobiPlannerTheme
+import com.example.ui.theme.ThemeDesignSystem
+import com.example.ui.theme.ThemePreset
 import com.example.viewmodel.AiViewModel
 import com.example.viewmodel.FocusTimerViewModel
 import com.example.viewmodel.PlannerUiState
@@ -91,18 +158,8 @@ fun ShinobiAppShell(
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit
 ) {
-    val context = LocalContext.current
     val uiState by plannerViewModel.uiState.collectAsStateWithLifecycle()
-    val audioState by plannerViewModel.audioState.collectAsStateWithLifecycle()
     val focusState by focusViewModel.uiState.collectAsStateWithLifecycle()
-    val chats by aiViewModel.chats.collectAsStateWithLifecycle()
-    val activeChatId by aiViewModel.activeChatId.collectAsStateWithLifecycle()
-    val messages by aiViewModel.messages.collectAsStateWithLifecycle()
-    val chatState by aiViewModel.chatState.collectAsStateWithLifecycle()
-    val scannerState by aiViewModel.scannerState.collectAsStateWithLifecycle()
-    val scansHistory by aiViewModel.scansHistory.collectAsStateWithLifecycle()
-    val dailySuggestion by aiViewModel.dailySuggestion.collectAsStateWithLifecycle()
-    val pendingDelete by aiViewModel.pendingDeleteConfirmation.collectAsStateWithLifecycle()
 
     val settings = uiState.settings
     val profile = uiState.profile
@@ -140,6 +197,7 @@ fun ShinobiAppShell(
         appearanceMode = appearance,
         accentKey = settings.accentColorKey,
         glassmorphism = settings.glassmorphism,
+        globalGlowEnabled = settings.globalGlowEnabled,
         glowIntensity = settings.glowIntensity,
         animationsEnabled = settings.animationsEnabled,
         reduceMotion = settings.reduceMotion,
@@ -265,27 +323,44 @@ private fun MainAuthenticatedScaffold(
 
         Row(modifier = Modifier.fillMaxSize()) {
             if (useRail && isTopLevel) {
-                NavigationRail(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-                    contentColor = visuals.primaryAccent
+                val railStyle = ThemeDesignSystem.glassStyle(
+                    accentColor = visuals.primaryAccent,
+                    tier = GlassTier.FLOATING_BAR,
+                    cornerRadius = 24.dp
+                )
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(start = 10.dp, top = 10.dp, bottom = 10.dp)
+                        .ShinobiGlassModifier(style = railStyle, showSpecularEdge = false),
+                    shape = railStyle.shape,
+                    color = Color.Transparent,
+                    tonalElevation = railStyle.tonalElevation,
+                    shadowElevation = railStyle.shadowElevation
                 ) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    TOP_LEVEL_TABS.forEach { tab ->
-                        val selected = when (tab.route) {
-                            is HomeRoute -> currentDest?.hasRoute<HomeRoute>() == true
-                            is ScheduleRoute -> currentDest?.hasRoute<ScheduleRoute>() == true
-                            is MissionsRoute -> currentDest?.hasRoute<MissionsRoute>() == true
-                            is ProgressRoute -> currentDest?.hasRoute<ProgressRoute>() == true
-                            is SettingsRoute -> currentDest?.hasRoute<SettingsRoute>() == true
-                            else -> false
+                    NavigationRail(
+                        containerColor = Color.Transparent,
+                        contentColor = visuals.primaryAccent
+                    ) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        TOP_LEVEL_TABS.forEach { tab ->
+                            val selected = when (tab.route) {
+                                is HomeRoute -> currentDest?.hasRoute<HomeRoute>() == true
+                                is ScheduleRoute -> currentDest?.hasRoute<ScheduleRoute>() == true
+                                is MissionsRoute -> currentDest?.hasRoute<MissionsRoute>() == true
+                                is ProgressRoute -> currentDest?.hasRoute<ProgressRoute>() == true
+                                is SettingsRoute -> currentDest?.hasRoute<SettingsRoute>() == true
+                                else -> false
+                            }
+                            NavigationRailItem(
+                                selected = selected,
+                                onClick = { navigateTopLevel(tab.route) },
+                                icon = { Icon(tab.icon, contentDescription = tab.label) },
+                                label = { Text(tab.label) },
+                                modifier = Modifier.testTag(tab.tag)
+                            )
                         }
-                        NavigationRailItem(
-                            selected = selected,
-                            onClick = { navigateTopLevel(tab.route) },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) },
-                            modifier = Modifier.testTag(tab.tag)
-                        )
                     }
                 }
             }
@@ -297,12 +372,10 @@ private fun MainAuthenticatedScaffold(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 bottomBar = {
                     if (!useRail && isTopLevel) {
-                        NavigationBar(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                            tonalElevation = 8.dp
-                        ) {
-                            TOP_LEVEL_TABS.forEach { tab ->
-                                val selected = when (tab.route) {
+                        FloatingGlassBottomNavBar(
+                            tabs = TOP_LEVEL_TABS,
+                            isSelected = { tab ->
+                                when (tab.route) {
                                     is HomeRoute -> currentDest?.hasRoute<HomeRoute>() == true
                                     is ScheduleRoute -> currentDest?.hasRoute<ScheduleRoute>() == true
                                     is MissionsRoute -> currentDest?.hasRoute<MissionsRoute>() == true
@@ -310,15 +383,9 @@ private fun MainAuthenticatedScaffold(
                                     is SettingsRoute -> currentDest?.hasRoute<SettingsRoute>() == true
                                     else -> false
                                 }
-                                NavigationBarItem(
-                                    selected = selected,
-                                    onClick = { navigateTopLevel(tab.route) },
-                                    icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                    label = { Text(tab.label, maxLines = 1) },
-                                    modifier = Modifier.testTag(tab.tag)
-                                )
-                            }
-                        }
+                            },
+                            onSelect = { tab -> navigateTopLevel(tab.route) }
+                        )
                     }
                 }
             ) { innerPadding ->
@@ -332,7 +399,9 @@ private fun MainAuthenticatedScaffold(
                         startDestination = HomeRoute,
                         enterTransition = {
                             if (visuals.animationsEnabled) {
-                                fadeIn(tween(220)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(220))
+                                fadeIn(tween(220)) +
+                                    scaleIn(initialScale = 0.97f, animationSpec = tween(220)) +
+                                    slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(220))
                             } else EnterTransition.None
                         },
                         exitTransition = {
@@ -361,12 +430,16 @@ private fun MainAuthenticatedScaffold(
                                     openScheduleCreateFlag = true
                                     navigateTopLevel(ScheduleRoute)
                                 },
+                                onOpenScheduleView = {
+                                    navigateTopLevel(ScheduleRoute)
+                                },
                                 onOpenFocusDojo = {
                                     missionsInitialTab = 0
                                     navigateTopLevel(MissionsRoute)
                                 },
                                 onOpenAiMentor = { navController.navigate(AiMentorRoute) },
                                 onOpenScanner = { navController.navigate(ScannerRoute) },
+                                onOpenSettings = { navigateTopLevel(SettingsRoute) },
                                 onSaveWidgetsOrder = { csv ->
                                     plannerViewModel.updateSettings { it.copy(dashboardWidgetsCsv = csv) }
                                 }
@@ -518,13 +591,14 @@ private fun MainAuthenticatedScaffold(
                         modifier = Modifier.align(Alignment.TopCenter)
                     )
 
-                    // Draggable Floating AI Orb
+                    // Draggable Holographic AI Chakra Orb (Tap = AI Mentor, Hold = Quick Launcher)
                     if (showFloatingOrb) {
                         FloatingAiOrb(
-                            onClick = { showQuickAiSheet = true },
+                            onClick = { navController.navigate(AiMentorRoute) },
+                            onLongClick = { showQuickAiSheet = true },
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(end = 20.dp, bottom = 18.dp)
+                                .padding(end = 18.dp, bottom = 14.dp)
                         )
                     }
                 }
@@ -534,15 +608,25 @@ private fun MainAuthenticatedScaffold(
 
     if (showQuickAiSheet) {
         var quickPrompt by remember { mutableStateOf("") }
-        ModalBottomSheet(onDismissRequest = { showQuickAiSheet = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showQuickAiSheet = false },
+            containerColor = if (visuals.isDark) HoloSurfaceElevated else MaterialTheme.colorScheme.surface
+        ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = visuals.primaryAccent)
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = HolographicPurple)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("SHINOBI QUICK AI LAUNCHER", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "SHINOBI QUICK AI LAUNCHER",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 OutlinedTextField(
                     value = quickPrompt,
@@ -560,7 +644,7 @@ private fun MainAuthenticatedScaffold(
                             showQuickAiSheet = false
                             navController.navigate(AiMentorRoute)
                         },
-                        modifier = Modifier.weight(1f).testTag("quick_ai_go_mentor")
+                        modifier = Modifier.weight(1f).height(48.dp).testTag("quick_ai_go_mentor")
                     ) {
                         Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -571,7 +655,7 @@ private fun MainAuthenticatedScaffold(
                             showQuickAiSheet = false
                             navController.navigate(ScannerRoute)
                         },
-                        modifier = Modifier.weight(1f).testTag("quick_ai_go_scanner")
+                        modifier = Modifier.weight(1f).height(48.dp).testTag("quick_ai_go_scanner")
                     ) {
                         Icon(Icons.Filled.DocumentScanner, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -579,6 +663,126 @@ private fun MainAuthenticatedScaffold(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloatingGlassBottomNavBar(
+    tabs: List<TopLevelTab>,
+    isSelected: (TopLevelTab) -> Boolean,
+    onSelect: (TopLevelTab) -> Unit
+) {
+    val visuals = LocalShinobiVisuals.current
+    val barStyle = ThemeDesignSystem.glassStyle(
+        accentColor = visuals.primaryAccent,
+        tier = GlassTier.FLOATING_BAR,
+        glowActive = true,
+        cornerRadius = ThemeDesignSystem.FloatingBarCornerRadius
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 540.dp)
+                .ShinobiGlassModifier(style = barStyle),
+            shape = barStyle.shape,
+            color = Color.Transparent,
+            tonalElevation = barStyle.tonalElevation,
+            shadowElevation = barStyle.shadowElevation
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEach { tab ->
+                    val selected = isSelected(tab)
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (selected) 1.12f else 1f,
+                        animationSpec = if (visuals.animationsEnabled) spring(dampingRatio = 0.65f) else snap(),
+                        label = "nav_icon_scale_${tab.tag}"
+                    )
+                    val tintColor by animateColorAsState(
+                        targetValue = if (selected) {
+                            visuals.primaryAccent
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        animationSpec = if (visuals.animationsEnabled) tween(200) else snap(),
+                        label = "nav_tint_${tab.tag}"
+                    )
+
+                    val itemShape = RoundedCornerShape(22.dp)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp)
+                            .clip(itemShape)
+                            .then(
+                                if (selected) {
+                                    Modifier.background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                visuals.primaryAccent.copy(alpha = 0.22f),
+                                                visuals.secondaryAccent.copy(alpha = 0.08f)
+                                            )
+                                        )
+                                    )
+                                } else Modifier
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onSelect(tab) }
+                            )
+                            .testTag(tab.tag),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.label,
+                                tint = tintColor,
+                                modifier = Modifier
+                                    .size(21.dp)
+                                    .scale(iconScale)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = tab.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = tintColor,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (selected) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(16.dp)
+                                        .height(2.dp)
+                                        .clip(CircleShape)
+                                        .background(visuals.primaryAccent)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -632,6 +836,8 @@ private fun AppLockGateScreen(
         contentAlignment = Alignment.Center
     ) {
         HoloCard(
+            glassTier = GlassTier.HERO,
+            glowActive = true,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(24.dp)

@@ -248,6 +248,7 @@ data class UserSettingsEntity(
     val appearanceMode: String = "DARK",
     val accentColorKey: String = "ORANGE",
     val glassmorphism: Boolean = true,
+    val globalGlowEnabled: Boolean = true,
     val glowIntensity: Float = 0.8f,
     val fontScale: Float = 1.0f,
     val animationsEnabled: Boolean = true,

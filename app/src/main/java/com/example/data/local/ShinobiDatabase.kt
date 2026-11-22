@@ -24,7 +24,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TimetableScanEntity::class,
         UserSettingsEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ShinobiDatabase : RoomDatabase() {
@@ -98,6 +98,14 @@ abstract class ShinobiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `user_settings` ADD COLUMN `globalGlowEnabled` INTEGER NOT NULL DEFAULT 1"
+                )
+            }
+        }
+
         fun getInstance(context: Context): ShinobiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -105,7 +113,7 @@ abstract class ShinobiDatabase : RoomDatabase() {
                     ShinobiDatabase::class.java,
                     "shinobi_planner.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance

@@ -6,7 +6,17 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -16,10 +26,28 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -28,9 +56,17 @@ import androidx.core.content.FileProvider
 import com.example.core.ai.ScannedTimetableEvent
 import com.example.core.common.ShinobiTimeUtil
 import com.example.data.local.TimetableScanEntity
+import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
 import com.example.ui.components.RankBadgeChip
-import com.example.ui.theme.*
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraGreen
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.CyberTextPrimary
+import com.example.ui.theme.HolographicPurple
+import com.example.ui.theme.LocalShinobiVisuals
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
 import com.example.viewmodel.ScannerUiState
 import java.io.File
 
@@ -100,7 +136,7 @@ fun TimetableScannerScreen(
     }
 
     Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = {
@@ -112,7 +148,7 @@ fun TimetableScannerScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (visuals.isDark) 0.82f else 0.94f)
                 )
             )
         }
@@ -126,7 +162,11 @@ fun TimetableScannerScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                HoloCard(accentColor = visuals.primaryAccent) {
+                HoloCard(
+                    accentColor = HolographicPurple,
+                    glassTier = GlassTier.HERO,
+                    glowActive = true
+                ) {
                     Text(
                         text = "Capture or upload your university class timetable, exam calendar, or PDF schedule. Gemini AI extracts subjects, days, times, and rooms.",
                         style = MaterialTheme.typography.bodyMedium
@@ -154,11 +194,11 @@ fun TimetableScannerScreen(
                                 cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                             },
                             modifier = Modifier.weight(1f).height(50.dp).testTag("scan_camera_button"),
-                            colors = ButtonDefaults.buttonColors(containerColor = visuals.primaryAccent, contentColor = MidnightNavy)
+                            colors = ButtonDefaults.buttonColors(containerColor = ChakraCyan, contentColor = MidnightNavy)
                         ) {
                             Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Camera")
+                            Text("Camera", fontWeight = FontWeight.Bold)
                         }
                         Button(
                             onClick = {
@@ -166,11 +206,11 @@ fun TimetableScannerScreen(
                                 photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             },
                             modifier = Modifier.weight(1f).height(50.dp).testTag("scan_gallery_button"),
-                            colors = ButtonDefaults.buttonColors(containerColor = ChakraOrange, contentColor = MidnightNavy)
+                            colors = ButtonDefaults.buttonColors(containerColor = NarutoOrange, contentColor = MidnightNavy)
                         ) {
                             Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Gallery")
+                            Text("Gallery", fontWeight = FontWeight.Bold)
                         }
                         Button(
                             onClick = {
@@ -178,11 +218,11 @@ fun TimetableScannerScreen(
                                 pdfPickerLauncher.launch(arrayOf("application/pdf"))
                             },
                             modifier = Modifier.weight(1f).height(50.dp).testTag("scan_pdf_button"),
-                            colors = ButtonDefaults.buttonColors(containerColor = ArcaneViolet, contentColor = CyberTextPrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = HolographicPurple, contentColor = CyberTextPrimary)
                         ) {
                             Icon(Icons.Filled.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("PDF")
+                            Text("PDF", fontWeight = FontWeight.Bold)
                         }
                     }
                     cameraErrorMsg?.let { err ->
@@ -196,12 +236,12 @@ fun TimetableScannerScreen(
                 ScannerUiState.Idle -> {}
                 ScannerUiState.Scanning -> {
                     item {
-                        HoloCard(accentColor = visuals.primaryAccent) {
+                        HoloCard(accentColor = HolographicPurple, glowActive = true) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                CircularProgressIndicator(modifier = Modifier.size(26.dp))
+                                CircularProgressIndicator(modifier = Modifier.size(26.dp), color = HolographicPurple)
                                 Text("Optical Jutsu: analyzing timetable layout & extracting classes...")
                             }
                         }
@@ -218,11 +258,11 @@ fun TimetableScannerScreen(
                 }
                 is ScannerUiState.Saved -> {
                     item {
-                        HoloCard(accentColor = JadeEmerald) {
+                        HoloCard(accentColor = ChakraGreen, glowActive = true) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = JadeEmerald)
+                                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = ChakraGreen)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Imported ${scannerState.count} missions into your Schedule!", fontWeight = FontWeight.Bold, color = JadeEmerald)
+                                Text("Imported ${scannerState.count} missions into your Schedule!", fontWeight = FontWeight.Bold, color = ChakraGreen)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             TextButton(onClick = onResetScanner) { Text("Scan Another Document") }
@@ -240,14 +280,14 @@ fun TimetableScannerScreen(
                             Button(
                                 onClick = { onConfirmSave(lastSourceType, accurateMode) },
                                 modifier = Modifier.testTag("confirm_save_scanned_events"),
-                                colors = ButtonDefaults.buttonColors(containerColor = JadeEmerald, contentColor = MidnightNavy)
+                                colors = ButtonDefaults.buttonColors(containerColor = ChakraGreen, contentColor = MidnightNavy)
                             ) {
                                 Text("Save All to Schedule", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                     itemsIndexed(scannerState.events) { idx, ev ->
-                        HoloCard(contentPadding = PaddingValues(12.dp)) {
+                        HoloCard(accentColor = ChakraCyan, contentPadding = PaddingValues(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 OutlinedTextField(
                                     value = ev.title,
@@ -296,10 +336,10 @@ fun TimetableScannerScreen(
 
             if (scansHistory.isNotEmpty()) {
                 item {
-                    Text("Scan History", style = MaterialTheme.typography.titleSmall)
+                    Text("Scan History", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 }
                 itemsIndexed(scansHistory.take(5)) { _, scan ->
-                    HoloCard(contentPadding = PaddingValues(12.dp)) {
+                    HoloCard(glassTier = GlassTier.SUBTLE, contentPadding = PaddingValues(12.dp)) {
                         Text("${scan.sourceType} (${scan.mode}) — ${scan.extractedCount} events", fontWeight = FontWeight.SemiBold)
                         if (scan.summary.isNotBlank()) {
                             Text(scan.summary, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -14,12 +14,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 enum class ThemePreset(val label: String, val subtitle: String) {
-    NARUTO("Hidden Leaf Chakra", "Fiery orange & golden anime warmth"),
-    CYBER_SHINOBI("Midnight ANBU", "Moonlit teal & chakra orange night"),
-    ACADEMIC("Academy Scroll", "Clean parchment-style study view"),
-    AMOLED("Shadow Clone Black", "Pure black battery-conscious"),
-    MINIMAL("Sage Zen", "Calm cards, zero particles"),
-    CUSTOM("Custom Chakra", "Full user chakra color control")
+    NARUTO("Hidden Leaf Chakra", "Futuristic orange, chakra cyan & dark obsidian glass"),
+    CYBER_SHINOBI("Midnight ANBU", "Chakra cyan, holographic violet & night glass"),
+    ACADEMIC("Academy Scroll", "Crisp structured study view with low glow"),
+    AMOLED("Shadow Clone Black", "Pure AMOLED #030508 battery-conscious glass"),
+    MINIMAL("Sage Zen", "Calm minimal glass panels, zero particles"),
+    CUSTOM("Custom Chakra", "Full user chakra accent color control")
 }
 
 enum class AppearanceMode(val label: String) {
@@ -33,35 +33,37 @@ enum class AppearanceMode(val label: String) {
 data class ShinobiVisualConfig(
     val preset: ThemePreset = ThemePreset.NARUTO,
     val appearanceMode: AppearanceMode = AppearanceMode.DARK,
+    val isDark: Boolean = true,
     val primaryAccent: Color = ChakraOrange,
-    val secondaryAccent: Color = GoldRankS,
-    val tertiaryAccent: Color = ArcaneViolet,
+    val secondaryAccent: Color = ChakraCyan,
+    val tertiaryAccent: Color = HolographicPurple,
     val glassmorphismEnabled: Boolean = true,
+    val globalGlowEnabled: Boolean = true,
     val glowIntensity: Float = 0.8f,
     val showScanlines: Boolean = false,
     val showParticles: Boolean = true,
     val animationsEnabled: Boolean = true,
     val reduceMotion: Boolean = false,
     val batterySaverMode: Boolean = false,
-    val cardCornerRadiusDp: Int = 18
+    val cardCornerRadiusDp: Int = 20
 )
 
 val LocalShinobiVisuals = staticCompositionLocalOf { ShinobiVisualConfig() }
 
 val ShinobiShapes = Shapes(
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(16.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
     large = RoundedCornerShape(22.dp),
     extraLarge = RoundedCornerShape(28.dp)
 )
 
 fun resolveAccentColor(key: String): Color = when (key.uppercase()) {
-    "CYAN" -> NeonCyan
-    "VIOLET" -> ArcaneViolet
-    "EMERALD" -> JadeEmerald
+    "CYAN" -> ChakraCyan
+    "VIOLET" -> HolographicPurple
+    "EMERALD" -> ChakraGreen
     "GOLD" -> GoldRankS
     "CRIMSON" -> CrimsonAlert
-    else -> ChakraOrange
+    else -> NarutoOrange
 }
 
 @Composable
@@ -70,6 +72,7 @@ fun ShinobiPlannerTheme(
     appearanceMode: AppearanceMode = AppearanceMode.DARK,
     accentKey: String = "ORANGE",
     glassmorphism: Boolean = true,
+    globalGlowEnabled: Boolean = true,
     glowIntensity: Float = 0.8f,
     animationsEnabled: Boolean = true,
     reduceMotion: Boolean = false,
@@ -86,19 +89,20 @@ fun ShinobiPlannerTheme(
     val useAmoled = appearanceMode == AppearanceMode.AMOLED || preset == ThemePreset.AMOLED
 
     val primaryAccent = when (preset) {
-        ThemePreset.NARUTO -> ChakraOrange
-        ThemePreset.CYBER_SHINOBI -> NeonCyan
-        ThemePreset.ACADEMIC -> if (useDark) Color(0xFF60A5FA) else AcademicPrimary
+        ThemePreset.NARUTO -> NarutoOrange
+        ThemePreset.CYBER_SHINOBI -> ChakraCyan
+        ThemePreset.ACADEMIC -> if (useDark) Color(0xFF60A5FA) else AcademicSecondary
         ThemePreset.MINIMAL -> if (useDark) Color(0xFF94A3B8) else Color(0xFF334155)
         ThemePreset.CUSTOM -> resolveAccentColor(accentKey)
-        ThemePreset.AMOLED -> ChakraOrange
+        ThemePreset.AMOLED -> NarutoOrange
     }
     val secondaryAccent = when (preset) {
-        ThemePreset.NARUTO -> GoldRankS
-        ThemePreset.ACADEMIC -> if (useDark) Color(0xFF38BDF8) else AcademicSecondary
-        ThemePreset.MINIMAL -> if (useDark) Color(0xFF64748B) else Color(0xFF475569)
-        ThemePreset.AMOLED -> GoldRankS
-        else -> ChakraOrange
+        ThemePreset.NARUTO -> ChakraCyan
+        ThemePreset.CYBER_SHINOBI -> NarutoOrange
+        ThemePreset.ACADEMIC -> if (useDark) NarutoOrange else AcademicPrimary
+        ThemePreset.MINIMAL -> if (useDark) ChakraCyan.copy(alpha = 0.7f) else Color(0xFF475569)
+        ThemePreset.AMOLED -> ChakraCyan
+        ThemePreset.CUSTOM -> if (accentKey.uppercase() == "CYAN") NarutoOrange else ChakraCyan
     }
 
     val colorScheme = if (useDark) {
@@ -111,13 +115,13 @@ fun ShinobiPlannerTheme(
             onSecondary = MidnightNavy,
             secondaryContainer = secondaryAccent.copy(alpha = 0.18f),
             onSecondaryContainer = CyberTextPrimary,
-            tertiary = ArcaneViolet,
-            onTertiary = Color.White,
+            tertiary = HolographicPurple,
+            onTertiary = MidnightNavy,
             background = if (useAmoled) PureBlackAmoled else MidnightNavy,
             onBackground = CyberTextPrimary,
             surface = if (useAmoled) AmoledCard else DeepObsidian,
             onSurface = CyberTextPrimary,
-            surfaceVariant = if (useAmoled) Color(0xFF111624) else HoloSurface,
+            surfaceVariant = if (useAmoled) Color(0xFF101726) else HoloSurface,
             onSurfaceVariant = CyberTextSecondary,
             outline = CyberBorderGlow,
             error = CrimsonAlert,
@@ -125,15 +129,16 @@ fun ShinobiPlannerTheme(
         )
     } else {
         lightColorScheme(
-            primary = if (preset == ThemePreset.NARUTO) Color(0xFFE65100) else AcademicPrimary,
+            primary = if (preset == ThemePreset.NARUTO || preset == ThemePreset.CUSTOM) AcademicPrimary else AcademicSecondary,
             onPrimary = Color.White,
-            primaryContainer = Color(0xFFDCEBFF),
+            primaryContainer = Color(0xFFFFEAD8),
             onPrimaryContainer = AcademicTextPrimary,
-            secondary = secondaryAccent,
+            secondary = AcademicSecondary,
             onSecondary = Color.White,
-            secondaryContainer = Color(0xFFFFE5CC),
+            secondaryContainer = Color(0xFFE0F2FE),
             onSecondaryContainer = AcademicTextPrimary,
-            tertiary = ArcaneViolet,
+            tertiary = Color(0xFF7C3AED),
+            onTertiary = Color.White,
             background = AcademicBgLight,
             onBackground = AcademicTextPrimary,
             surface = AcademicSurfaceLight,
@@ -150,13 +155,20 @@ fun ShinobiPlannerTheme(
     val visuals = ShinobiVisualConfig(
         preset = preset,
         appearanceMode = appearanceMode,
+        isDark = useDark,
         primaryAccent = primaryAccent,
         secondaryAccent = secondaryAccent,
-        tertiaryAccent = ArcaneViolet,
+        tertiaryAccent = HolographicPurple,
         glassmorphismEnabled = glassmorphism && preset != ThemePreset.ACADEMIC && preset != ThemePreset.MINIMAL,
-        glowIntensity = if (preset == ThemePreset.MINIMAL || preset == ThemePreset.ACADEMIC || batterySaver) 0.15f else glowIntensity,
+        globalGlowEnabled = globalGlowEnabled && useDark && !batterySaver && preset != ThemePreset.MINIMAL,
+        glowIntensity = if (preset == ThemePreset.MINIMAL || preset == ThemePreset.ACADEMIC || batterySaver || !useDark) {
+            0.20f
+        } else {
+            glowIntensity
+        },
         showScanlines = false,
-        showParticles = (preset == ThemePreset.NARUTO || preset == ThemePreset.CYBER_SHINOBI) && effectiveMotion,
+        showParticles = (preset == ThemePreset.NARUTO || preset == ThemePreset.CYBER_SHINOBI || preset == ThemePreset.AMOLED) &&
+            effectiveMotion && useDark,
         animationsEnabled = effectiveMotion,
         reduceMotion = reduceMotion,
         batterySaverMode = batterySaver

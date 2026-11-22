@@ -5,13 +5,28 @@ import android.content.Intent
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -21,10 +36,36 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -35,10 +76,19 @@ import com.example.core.media.AudioPlaybackState
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.StudyNoteEntity
 import com.example.ui.components.ChakraProgressRing
+import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
 import com.example.ui.components.RankBadgeChip
 import com.example.ui.components.ShurikenCheckbox
-import com.example.ui.theme.*
+import com.example.ui.components.XpProgressBar
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraGreen
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.HolographicPurple
+import com.example.ui.theme.JadeEmerald
+import com.example.ui.theme.LocalShinobiVisuals
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
 import com.example.viewmodel.FocusModeType
 import com.example.viewmodel.FocusTimerUiState
 import com.example.viewmodel.PlannerUiState
@@ -97,14 +147,19 @@ fun MissionsScreen(
     ) {
         TabRow(
             selectedTabIndex = selectedTab.ordinal,
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (visuals.isDark) 0.78f else 0.94f),
             contentColor = visuals.primaryAccent
         ) {
             MissionsTab.entries.forEach { tab ->
                 Tab(
                     selected = selectedTab == tab,
                     onClick = { selectedTab = tab },
-                    text = { Text(tab.label) },
+                    text = {
+                        Text(
+                            text = tab.label,
+                            fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium
+                        )
+                    },
                     modifier = Modifier.testTag("missions_tab_${tab.name.lowercase()}")
                 )
             }
@@ -156,7 +211,6 @@ private fun FocusDojoTab(
     onToggleMusic: () -> Unit,
     onNextTrack: () -> Unit
 ) {
-    val visuals = LocalShinobiVisuals.current
     val totalFocusMins = uiState.sessions.sumOf { it.durationMinutes }
     val goalFraction = (totalFocusMins.toFloat() / focusState.dailyGoalMinutes.coerceAtLeast(1)).coerceIn(0f, 1f)
 
@@ -182,8 +236,12 @@ private fun FocusDojoTab(
 
         if (focusState.mode == FocusModeType.CUSTOM && !focusState.distractionFreeMode) {
             item {
-                HoloCard {
-                    Text("Custom Duration: ${focusState.customMinutes} minutes", style = MaterialTheme.typography.titleSmall)
+                HoloCard(accentColor = ChakraCyan) {
+                    Text(
+                        text = "Custom Duration: ${focusState.customMinutes} minutes",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
                     Slider(
                         value = focusState.customMinutes.toFloat(),
                         onValueChange = { onSetCustomMinutes(it.toInt()) },
@@ -193,7 +251,7 @@ private fun FocusDojoTab(
             }
         }
 
-        // Main Timer Ring Card
+        // Major Futuristic Cyan Chakra Energy Focus Dojo Timer Card
         item {
             val displaySec = if (focusState.mode == FocusModeType.STOPWATCH) {
                 focusState.elapsedStopwatchSeconds
@@ -207,27 +265,41 @@ private fun FocusDojoTab(
             }
             val timeStr = String.format(Locale.ENGLISH, "%02d:%02d", displaySec / 60, displaySec % 60)
 
-            HoloCard(accentColor = visuals.primaryAccent) {
+            HoloCard(
+                accentColor = ChakraCyan,
+                glassTier = GlassTier.HERO,
+                glowActive = focusState.isRunning || focusState.lastCompletedMessage != null
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = focusState.mode.label.uppercase(),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = visuals.primaryAccent
-                    )
+                    Column {
+                        Text(
+                            text = "FOCUS DOJO • ${focusState.mode.label.uppercase()}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = ChakraCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${focusState.completedPomodorosToday} sessions completed today",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(
                         onClick = onToggleDistractionFree,
-                        modifier = Modifier.testTag("toggle_distraction_free_button")
+                        modifier = Modifier.size(48.dp).testTag("toggle_distraction_free_button")
                     ) {
                         Icon(
                             imageVector = if (focusState.distractionFreeMode) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
-                            contentDescription = "Toggle Distraction Free Mode"
+                            contentDescription = "Toggle Distraction Free Mode",
+                            tint = ChakraCyan
                         )
                     }
                 }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -238,9 +310,11 @@ private fun FocusDojoTab(
                         progress = progress,
                         centerTitle = timeStr,
                         centerSubtitle = focusState.selectedSubject,
-                        size = 200.dp,
+                        size = 216.dp,
                         strokeWidth = 14.dp,
-                        accentColor = visuals.primaryAccent
+                        accentColor = ChakraCyan,
+                        isAnimating = focusState.isRunning,
+                        showCompletionPulse = focusState.lastCompletedMessage != null
                     )
                 }
 
@@ -252,7 +326,7 @@ private fun FocusDojoTab(
                         onClick = onToggleFocusStartPause,
                         modifier = Modifier.height(50.dp).testTag("focus_start_pause_button"),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (focusState.isRunning) ChakraOrange else JadeEmerald,
+                            containerColor = if (focusState.isRunning) NarutoOrange else ChakraCyan,
                             contentColor = MidnightNavy
                         )
                     ) {
@@ -275,23 +349,47 @@ private fun FocusDojoTab(
             }
         }
 
-        // Integrated Media3 Mini-Player
+        // Integrated Media3 Frosted Glass Mini-Player
         item {
-            HoloCard(accentColor = ArcaneViolet) {
+            HoloCard(
+                accentColor = HolographicPurple,
+                glowActive = audioState.isPlaying
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.MusicNote, contentDescription = "Focus Music", tint = ArcaneViolet)
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(HolographicPurple.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.MusicNote, contentDescription = "Focus Music", tint = HolographicPurple)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(audioState.currentTitle, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                        Text(audioState.currentArtist, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = audioState.currentTitle,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = audioState.currentArtist,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    IconButton(onClick = onToggleMusic, modifier = Modifier.testTag("dojo_music_play_pause")) {
-                        Icon(if (audioState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = "Play or Pause Focus Music")
+                    IconButton(onClick = onToggleMusic, modifier = Modifier.size(48.dp).testTag("dojo_music_play_pause")) {
+                        Icon(
+                            imageVector = if (audioState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = "Play or Pause Focus Music",
+                            tint = HolographicPurple
+                        )
                     }
-                    IconButton(onClick = onNextTrack) {
+                    IconButton(onClick = onNextTrack, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Filled.SkipNext, contentDescription = "Next Track")
                     }
                 }
@@ -300,8 +398,8 @@ private fun FocusDojoTab(
 
         if (!focusState.distractionFreeMode) {
             item {
-                HoloCard {
-                    Text("Subject Tag", style = MaterialTheme.typography.labelLarge, color = visuals.primaryAccent)
+                HoloCard(accentColor = NarutoOrange) {
+                    Text("Subject Tag", style = MaterialTheme.typography.labelLarge, color = NarutoOrange, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     val subjectOptions = (listOf("General Study") + uiState.subjects.map { it.name }).distinct()
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -324,26 +422,32 @@ private fun FocusDojoTab(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Daily Study Goal: $totalFocusMins / ${focusState.dailyGoalMinutes} min", style = MaterialTheme.typography.labelMedium)
-                    LinearProgressIndicator(
-                        progress = { goalFraction },
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                        color = JadeEmerald
+                    Spacer(modifier = Modifier.height(6.dp))
+                    XpProgressBar(
+                        progress = goalFraction,
+                        startColor = ChakraCyan,
+                        endColor = ChakraGreen,
+                        height = 8.dp
                     )
                 }
             }
 
             if (uiState.sessions.isNotEmpty()) {
                 item {
-                    Text("Recent Focus Logs", style = MaterialTheme.typography.titleSmall)
+                    Text("Recent Focus Logs", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 }
                 items(uiState.sessions.take(5), key = { it.id }) { s ->
-                    HoloCard(contentPadding = PaddingValues(12.dp)) {
+                    HoloCard(
+                        accentColor = ChakraGreen,
+                        glassTier = GlassTier.SUBTLE,
+                        contentPadding = PaddingValues(12.dp)
+                    ) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
                                 Text("${s.subjectName} (${s.mode})", fontWeight = FontWeight.SemiBold)
                                 Text("${s.durationMinutes} min focus session", style = MaterialTheme.typography.labelSmall)
                             }
-                            Text("+${s.xpEarned} XP", color = JadeEmerald, fontWeight = FontWeight.Bold)
+                            Text("+${s.xpEarned} XP", color = ChakraGreen, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -354,6 +458,7 @@ private fun FocusDojoTab(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MissionBoardTab(
     tasks: List<PlannerTaskEntity>,
@@ -403,7 +508,7 @@ private fun MissionBoardTab(
 
         if (filtered.isEmpty()) {
             item {
-                HoloCard {
+                HoloCard(glassTier = GlassTier.SUBTLE) {
                     Text(
                         text = "No active missions match this rank filter. Add tasks in Schedule to populate the Mission Board.",
                         style = MaterialTheme.typography.bodyMedium
@@ -412,22 +517,61 @@ private fun MissionBoardTab(
             }
         } else {
             items(filtered, key = { it.id }) { task ->
-                HoloCard(
-                    accentColor = if (task.completed) JadeEmerald else LocalShinobiVisuals.current.primaryAccent,
-                    contentPadding = PaddingValues(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ShurikenCheckbox(checked = task.completed, onToggle = { onToggleTask(task) })
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(task.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            val startLabel = ShinobiTimeUtil.formatTime(task.startTimeMinutes, use24HourClock)
-                            Text(
-                                "${task.subjectName} • ${task.dateIso} $startLabel • +${task.xpReward} XP",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                val dismissState = rememberSwipeToDismissBoxState(
+                    confirmValueChange = { value ->
+                        if (value == SwipeToDismissBoxValue.StartToEnd) {
+                            onToggleTask(task)
+                            false
+                        } else false
+                    }
+                )
+                SwipeToDismissBox(
+                    state = dismissState,
+                    enableDismissFromEndToStart = false,
+                    backgroundContent = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(ChakraGreen.copy(alpha = 0.25f))
+                                .padding(horizontal = 20.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Icon(Icons.Filled.Check, contentDescription = "Toggle Complete", tint = ChakraGreen)
                         }
-                        RankBadgeChip(task.missionRank)
+                    }
+                ) {
+                    HoloCard(
+                        accentColor = if (task.completed) JadeEmerald else NarutoOrange,
+                        contentPadding = PaddingValues(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .width(3.dp)
+                                    .height(34.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                if (task.completed) ChakraGreen else NarutoOrange,
+                                                ChakraCyan
+                                            )
+                                        )
+                                    )
+                            )
+                            ShurikenCheckbox(checked = task.completed, onToggle = { onToggleTask(task) })
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(task.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                val startLabel = ShinobiTimeUtil.formatTime(task.startTimeMinutes, use24HourClock)
+                                Text(
+                                    "${task.subjectName} • ${task.dateIso} $startLabel • +${task.xpReward} XP",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            RankBadgeChip(task.missionRank)
+                        }
                     }
                 }
             }
@@ -477,7 +621,7 @@ private fun StudyNotesTab(
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp).testTag("new_study_note_button"),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = LocalShinobiVisuals.current.primaryAccent,
+                    containerColor = NarutoOrange,
                     contentColor = MidnightNavy
                 )
             ) {
@@ -489,7 +633,7 @@ private fun StudyNotesTab(
 
         if (uiState.notes.isEmpty()) {
             item {
-                HoloCard {
+                HoloCard(glassTier = GlassTier.SUBTLE) {
                     Text(
                         text = "Save formula sheets, lecture summaries, and PDF/file references linked to your subjects.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -500,6 +644,7 @@ private fun StudyNotesTab(
         } else {
             items(uiState.notes, key = { it.id }) { note ->
                 HoloCard(
+                    accentColor = ChakraCyan,
                     onClick = {
                         editingNote = note
                         noteTitle = note.title
@@ -512,7 +657,7 @@ private fun StudyNotesTab(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(note.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(note.subjectName, style = MaterialTheme.typography.labelSmall, color = LocalShinobiVisuals.current.primaryAccent)
+                            Text(note.subjectName, style = MaterialTheme.typography.labelSmall, color = ChakraCyan)
                         }
                         IconButton(onClick = { onDeleteNote(note.id) }) {
                             Icon(Icons.Filled.Delete, contentDescription = "Delete Note", tint = CrimsonAlert)
@@ -522,7 +667,7 @@ private fun StudyNotesTab(
                     Text(note.content, style = MaterialTheme.typography.bodySmall, maxLines = 4)
                     if (note.attachmentUri.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Attachment linked", style = MaterialTheme.typography.labelSmall, color = JadeEmerald)
+                        Text("Attachment linked", style = MaterialTheme.typography.labelSmall, color = ChakraGreen)
                     }
                 }
             }

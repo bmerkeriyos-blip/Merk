@@ -1,10 +1,29 @@
 package com.example.ui.auth
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -12,14 +31,29 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -29,7 +63,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import com.example.R
-import com.example.ui.theme.*
+import com.example.ui.components.GlassTier
+import com.example.ui.components.HoloCard
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraGreen
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.CyberTextPrimary
+import com.example.ui.theme.CyberTextSecondary
+import com.example.ui.theme.GoldRankS
+import com.example.ui.theme.HolographicPurple
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
+import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.ThemeDesignSystem
 
 @Composable
 fun AuthScreen(
@@ -89,7 +135,7 @@ fun AuthScreen(
                     Brush.verticalGradient(
                         colors = listOf(
                             MidnightNavy.copy(alpha = 0.65f),
-                            MidnightNavy.copy(alpha = 0.88f),
+                            MidnightNavy.copy(alpha = 0.90f),
                             MidnightNavy
                         )
                     )
@@ -111,11 +157,15 @@ fun AuthScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(104.dp)
+                        .size(110.dp)
                         .clip(CircleShape)
                         .background(
                             Brush.radialGradient(
-                                listOf(ChakraOrange.copy(alpha = 0.34f * crestAlpha), GoldRankS.copy(alpha = 0.12f), Color.Transparent)
+                                listOf(
+                                    NarutoOrange.copy(alpha = 0.36f * crestAlpha),
+                                    ChakraCyan.copy(alpha = 0.14f),
+                                    Color.Transparent
+                                )
                             )
                         ),
                     contentAlignment = Alignment.Center
@@ -124,13 +174,13 @@ fun AuthScreen(
                         painter = painterResource(id = R.drawable.img_shinobi_avatar),
                         contentDescription = "Shinobi Planner Crest",
                         modifier = Modifier
-                            .size(84.dp)
+                            .size(86.dp)
                             .clip(CircleShape),
                         contentScale = ContentScale.Crop
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
                     text = "SHINOBI PLANNER",
@@ -138,15 +188,15 @@ fun AuthScreen(
                     color = CyberTextPrimary,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "HIDDEN LEAF STUDY DOJO",
+                    text = "FUTURISTIC HIDDEN LEAF STUDY COMMAND",
                     style = MaterialTheme.typography.titleSmall,
-                    color = ChakraOrange,
+                    color = NarutoOrange,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "Master your classes, focus training, exams, and daily missions on your path to Kage.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -155,20 +205,17 @@ fun AuthScreen(
                 )
             }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = HoloSurface.copy(alpha = 0.85f)),
-                border = BorderStroke(1.dp, ChakraOrange.copy(alpha = 0.45f))
+            HoloCard(
+                accentColor = NarutoOrange,
+                glassTier = GlassTier.HERO,
+                glowActive = true,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    FeatureRow(Icons.Filled.Schedule, GoldRankS, "Smart Class Scroll & Conflict Detection")
-                    FeatureRow(Icons.Filled.AutoAwesome, ChakraOrange, "Gemini Shinobi Sensei & Timetable Scanner")
-                    FeatureRow(Icons.Filled.School, JadeEmerald, "Genin to Kage Missions, XP & Focus Dojo")
-                    FeatureRow(Icons.Filled.Lock, ArcaneViolet, "Offline-First Room Storage & Optional Cloud Sync")
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FeatureRow(Icons.Filled.Schedule, ChakraCyan, "Smart Class Scroll & Conflict Detection")
+                    FeatureRow(Icons.Filled.AutoAwesome, HolographicPurple, "Gemini Shinobi Sensei & Timetable Scanner")
+                    FeatureRow(Icons.Filled.School, NarutoOrange, "Genin to Kage Missions, XP & Focus Dojo")
+                    FeatureRow(Icons.Filled.Lock, ChakraGreen, "Offline-First Room Storage & Optional Cloud Sync")
                 }
             }
 
@@ -177,12 +224,21 @@ fun AuthScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 errorMessage?.let { msg ->
+                    val errorStyle = ThemeDesignSystem.glassStyle(
+                        accentColor = CrimsonAlert,
+                        tier = GlassTier.SUBTLE,
+                        glowActive = true,
+                        cornerRadius = ThemeDesignSystem.CompactCornerRadius,
+                        tintColor = CrimsonAlert
+                    )
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        colors = CardDefaults.cardColors(containerColor = CrimsonAlert.copy(alpha = 0.16f)),
-                        border = BorderStroke(1.dp, CrimsonAlert.copy(alpha = 0.6f))
+                            .padding(bottom = 12.dp)
+                            .ShinobiGlassModifier(style = errorStyle, showSpecularEdge = false),
+                        shape = errorStyle.shape,
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                        border = null
                     ) {
                         Text(
                             text = msg,
@@ -221,7 +277,7 @@ fun AuthScreen(
                         .testTag("google_sign_in_button"),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ChakraOrange,
+                        containerColor = NarutoOrange,
                         contentColor = MidnightNavy
                     )
                 ) {
@@ -252,7 +308,7 @@ fun AuthScreen(
                         .height(50.dp)
                         .testTag("skip_sign_in_button"),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, ChakraOrange.copy(alpha = 0.6f)),
+                    border = BorderStroke(1.dp, ChakraCyan.copy(alpha = 0.55f)),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = CyberTextPrimary)
                 ) {
                     Text(
@@ -276,7 +332,7 @@ fun AuthScreen(
 
 @Composable
 private fun FeatureRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     tint: Color,
     text: String
 ) {

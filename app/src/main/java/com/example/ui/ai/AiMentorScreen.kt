@@ -2,7 +2,21 @@ package com.example.ui.ai
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -15,10 +29,36 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,8 +66,19 @@ import com.example.core.ai.AiPersonality
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ChatSessionEntity
 import com.example.data.local.PlannerTaskEntity
+import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
-import com.example.ui.theme.*
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraGreen
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.GlassWhite
+import com.example.ui.theme.HoloSurfaceElevated
+import com.example.ui.theme.HolographicPurple
+import com.example.ui.theme.LocalShinobiVisuals
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
+import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.ThemeDesignSystem
 import com.example.viewmodel.AiChatUiState
 import com.example.viewmodel.PendingDestructiveAction
 
@@ -72,13 +123,17 @@ fun AiMentorScreen(
     }
 
     Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("SHINOBI SENSEI AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(personality.label, style = MaterialTheme.typography.labelSmall, color = visuals.primaryAccent)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = HolographicPurple, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("SHINOBI SENSEI AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(personality.label, style = MaterialTheme.typography.labelSmall, color = HolographicPurple)
+                        }
                     }
                 },
                 navigationIcon = {
@@ -88,7 +143,7 @@ fun AiMentorScreen(
                 },
                 actions = {
                     IconButton(onClick = onOpenScanner, modifier = Modifier.testTag("ai_open_scanner_button")) {
-                        Icon(Icons.Filled.DocumentScanner, contentDescription = "Open AI Timetable Scanner", tint = JadeEmerald)
+                        Icon(Icons.Filled.DocumentScanner, contentDescription = "Open AI Timetable Scanner", tint = ChakraCyan)
                     }
                     IconButton(onClick = { showHistorySheet = true }, modifier = Modifier.testTag("ai_history_button")) {
                         Icon(Icons.Filled.History, contentDescription = "Chat History")
@@ -98,7 +153,7 @@ fun AiMentorScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (visuals.isDark) 0.80f else 0.94f)
                 )
             )
         }
@@ -134,11 +189,20 @@ fun AiMentorScreen(
             ) {
                 if (messages.isEmpty() && chatState is AiChatUiState.Idle) {
                     item {
-                        HoloCard(accentColor = ArcaneViolet) {
+                        HoloCard(
+                            accentColor = HolographicPurple,
+                            glassTier = GlassTier.HERO,
+                            glowActive = true
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = ArcaneViolet)
+                                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = HolographicPurple)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Shinobi Sensei Ready", style = MaterialTheme.typography.titleSmall, color = ArcaneViolet)
+                                Text(
+                                    text = "Shinobi Sensei Ready",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = HolographicPurple,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
@@ -150,7 +214,7 @@ fun AiMentorScreen(
                 }
 
                 items(messages, key = { it.id }) { msg ->
-                    ChatBubble(msg = msg, primaryAccent = visuals.primaryAccent)
+                    ChatBubble(msg = msg)
                 }
 
                 if (chatState is AiChatUiState.Loading) {
@@ -160,8 +224,8 @@ fun AiMentorScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Text("Sensei is writing on your scroll...", style = MaterialTheme.typography.bodySmall)
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = HolographicPurple)
+                            Text("Sensei is formulating your scroll...", style = MaterialTheme.typography.bodySmall, color = HolographicPurple)
                         }
                     }
                 }
@@ -174,8 +238,7 @@ fun AiMentorScreen(
                                 userId = "",
                                 role = "model",
                                 content = chatState.partialReply
-                            ),
-                            primaryAccent = visuals.primaryAccent
+                            )
                         )
                     }
                 }
@@ -204,59 +267,90 @@ fun AiMentorScreen(
                 }
             }
 
-            // Input Composer
-            Row(
+            // Frosted Glass Input Composer
+            val composerStyle = ThemeDesignSystem.glassStyle(
+                accentColor = HolographicPurple,
+                tier = GlassTier.FLOATING_BAR,
+                glowActive = true,
+                cornerRadius = 22.dp
+            )
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 10.dp)
-                    .imePadding(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .imePadding()
+                    .ShinobiGlassModifier(style = composerStyle),
+                shape = composerStyle.shape,
+                color = Color.Transparent,
+                tonalElevation = composerStyle.tonalElevation,
+                shadowElevation = composerStyle.shadowElevation
             ) {
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    placeholder = { Text("Ask your Shinobi Sensei...") },
-                    maxLines = 3,
-                    modifier = Modifier.weight(1f).testTag("ai_chat_input")
-                )
-                FilledIconButton(
-                    onClick = {
-                        if (inputText.isNotBlank()) {
-                            val toSend = inputText
-                            inputText = ""
-                            onSendMessage(toSend, personality, tasks, timezoneId)
-                        }
-                    },
-                    enabled = chatState !is AiChatUiState.Loading && chatState !is AiChatUiState.Streaming,
-                    modifier = Modifier.size(52.dp).testTag("ai_send_button"),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = visuals.primaryAccent,
-                        contentColor = MidnightNavy
-                    )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send Message to AI Mentor")
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        placeholder = { Text("Ask your Shinobi Sensei...") },
+                        maxLines = 3,
+                        modifier = Modifier.weight(1f).testTag("ai_chat_input")
+                    )
+                    FilledIconButton(
+                        onClick = {
+                            if (inputText.isNotBlank()) {
+                                val toSend = inputText
+                                inputText = ""
+                                onSendMessage(toSend, personality, tasks, timezoneId)
+                            }
+                        },
+                        enabled = chatState !is AiChatUiState.Loading && chatState !is AiChatUiState.Streaming,
+                        modifier = Modifier.size(52.dp).testTag("ai_send_button"),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = HolographicPurple,
+                            contentColor = MidnightNavy
+                        )
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send Message to AI Mentor")
+                    }
                 }
             }
         }
     }
 
     if (showHistorySheet) {
-        ModalBottomSheet(onDismissRequest = { showHistorySheet = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showHistorySheet = false },
+            containerColor = if (visuals.isDark) HoloSurfaceElevated else MaterialTheme.colorScheme.surface
+        ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("Mentor Chat History", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 chats.forEach { session ->
+                    val isActive = session.id == activeChatId
+                    val itemStyle = ThemeDesignSystem.glassStyle(
+                        accentColor = HolographicPurple,
+                        tier = GlassTier.SUBTLE,
+                        glowActive = isActive,
+                        cornerRadius = ThemeDesignSystem.CompactCornerRadius,
+                        tintColor = if (isActive) HolographicPurple else null
+                    )
                     Surface(
                         onClick = {
                             onSelectChat(session.id)
                             showHistorySheet = false
                         },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (session.id == activeChatId) visuals.primaryAccent.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .ShinobiGlassModifier(style = itemStyle, showSpecularEdge = false),
+                        shape = itemStyle.shape,
+                        color = Color.Transparent,
+                        tonalElevation = itemStyle.tonalElevation
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -298,19 +392,29 @@ fun AiMentorScreen(
 }
 
 @Composable
-private fun ChatBubble(msg: ChatMessageEntity, primaryAccent: androidx.compose.ui.graphics.Color) {
+private fun ChatBubble(msg: ChatMessageEntity) {
     val isUser = msg.role == "user"
+    val accent = if (isUser) NarutoOrange else HolographicPurple
+    val bubbleStyle = ThemeDesignSystem.glassStyle(
+        accentColor = accent,
+        tier = GlassTier.STANDARD,
+        glowActive = !isUser,
+        cornerRadius = 18.dp,
+        tintColor = if (isUser) NarutoOrange else null
+    )
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Surface(
-            modifier = Modifier.widthIn(max = 320.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = if (isUser) primaryAccent.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-            border = BorderStroke(1.dp, if (isUser) primaryAccent.copy(alpha = 0.6f) else ArcaneViolet.copy(alpha = 0.45f))
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .ShinobiGlassModifier(style = bubbleStyle),
+            shape = bubbleStyle.shape,
+            color = Color.Transparent,
+            tonalElevation = bubbleStyle.tonalElevation
         ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(modifier = Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = msg.content,
                     style = MaterialTheme.typography.bodyMedium,
@@ -320,7 +424,7 @@ private fun ChatBubble(msg: ChatMessageEntity, primaryAccent: androidx.compose.u
                     Text(
                         text = "✓ ${msg.actionSummary}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = JadeEmerald,
+                        color = ChakraGreen,
                         fontWeight = FontWeight.Bold
                     )
                 }

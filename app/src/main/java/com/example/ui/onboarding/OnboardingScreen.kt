@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -118,14 +119,11 @@ fun OnboardingScreen(
                 }
             }
 
-            LinearProgressIndicator(
-                progress = { (step + 1) / totalSteps.toFloat() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color = ChakraOrange,
-                trackColor = HoloSurface
+            com.example.ui.components.XpProgressBar(
+                progress = (step + 1) / totalSteps.toFloat(),
+                startColor = NarutoOrange,
+                endColor = ChakraCyan,
+                height = 7.dp
             )
 
             Column(
@@ -151,7 +149,8 @@ fun OnboardingScreen(
                                 Text(
                                     text = "Welcome to Shinobi Planner",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = CyberTextPrimary
+                                    color = CyberTextPrimary,
+                                    fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = "Configure your Hidden Leaf study scroll & training dojo.",
@@ -169,7 +168,11 @@ fun OnboardingScreen(
                                 .clip(RoundedCornerShape(16.dp)),
                             contentScale = ContentScale.Crop
                         )
-                        HoloCard(accentColor = ChakraOrange) {
+                        HoloCard(
+                            accentColor = ChakraOrange,
+                            glassTier = com.example.ui.components.GlassTier.HERO,
+                            glowActive = true
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Filled.School, contentDescription = null, tint = ChakraOrange)
                                 Spacer(modifier = Modifier.width(10.dp))
@@ -294,14 +297,23 @@ fun OnboardingScreen(
                             Spacer(modifier = Modifier.height(10.dp))
                             ThemePreset.entries.forEach { preset ->
                                 val chosen = selectedPreset == preset.name
+                                val presetStyle = ThemeDesignSystem.glassStyle(
+                                    accentColor = ChakraOrange,
+                                    tier = GlassTier.SUBTLE,
+                                    glowActive = chosen,
+                                    cornerRadius = ThemeDesignSystem.CompactCornerRadius,
+                                    tintColor = if (chosen) ChakraOrange else null
+                                )
                                 Surface(
                                     onClick = { selectedPreset = preset.name },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = if (chosen) ChakraOrange.copy(alpha = 0.16f) else DeepObsidian,
-                                    border = BorderStroke(1.dp, if (chosen) ChakraOrange else CyberBorderGlow)
+                                        .padding(vertical = 4.dp)
+                                        .ShinobiGlassModifier(style = presetStyle, showSpecularEdge = false),
+                                    shape = presetStyle.shape,
+                                    color = Color.Transparent,
+                                    border = null,
+                                    tonalElevation = presetStyle.tonalElevation
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(14.dp),
@@ -357,14 +369,23 @@ fun OnboardingScreen(
                             Spacer(modifier = Modifier.height(10.dp))
                             AiPersonality.entries.forEach { p ->
                                 val chosen = selectedPersonality == p.code
+                                val persStyle = ThemeDesignSystem.glassStyle(
+                                    accentColor = ArcaneViolet,
+                                    tier = GlassTier.SUBTLE,
+                                    glowActive = chosen,
+                                    cornerRadius = ThemeDesignSystem.CompactCornerRadius,
+                                    tintColor = if (chosen) ArcaneViolet else null
+                                )
                                 Surface(
                                     onClick = { selectedPersonality = p.code },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = if (chosen) ArcaneViolet.copy(alpha = 0.2f) else DeepObsidian,
-                                    border = BorderStroke(1.dp, if (chosen) ArcaneViolet else CyberBorderGlow)
+                                        .padding(vertical = 4.dp)
+                                        .ShinobiGlassModifier(style = persStyle, showSpecularEdge = false),
+                                    shape = persStyle.shape,
+                                    color = Color.Transparent,
+                                    border = null,
+                                    tonalElevation = persStyle.tonalElevation
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(14.dp),

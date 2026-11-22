@@ -7,7 +7,17 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -26,10 +36,27 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Wallpaper
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -41,8 +68,18 @@ import com.example.core.media.ShinobiSfx
 import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
 import com.example.data.local.WallpaperItemEntity
+import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
-import com.example.ui.theme.*
+import com.example.ui.theme.AppearanceMode
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraGreen
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.GoldRankS
+import com.example.ui.theme.HolographicPurple
+import com.example.ui.theme.LocalShinobiVisuals
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
+import com.example.ui.theme.ThemePreset
 import com.example.viewmodel.PlannerUiState
 
 @Composable
@@ -120,16 +157,24 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text(
-                text = "SHINOBI COMMAND SETTINGS",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            Column {
+                Text(
+                    text = "SHINOBI COMMAND SETTINGS",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Customize glass HUD visuals, audio cues, clock format & cloud sync",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         // 1. Account & Export
         item {
-            HoloCard(accentColor = visuals.primaryAccent) {
+            HoloCard(accentColor = visuals.primaryAccent, glassTier = GlassTier.HERO) {
                 SectionTitle(Icons.Filled.AccountCircle, "Account & Cloud Sync", visuals.primaryAccent)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -173,7 +218,7 @@ fun SettingsScreen(
                             onClick = onSignInWithGoogle,
                             modifier = Modifier.weight(1f).testTag("settings_google_sign_in_button"),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = ChakraOrange,
+                                containerColor = NarutoOrange,
                                 contentColor = MidnightNavy
                             )
                         ) {
@@ -227,10 +272,10 @@ fun SettingsScreen(
             }
         }
 
-        // 2. Appearance & Theme Presets
+        // 2. Appearance, Theme Presets, Accent Color & Glow Intensity
         item {
-            HoloCard(accentColor = ChakraOrange) {
-                SectionTitle(Icons.Filled.Palette, "Appearance & Theme Presets", ChakraOrange)
+            HoloCard(accentColor = NarutoOrange) {
+                SectionTitle(Icons.Filled.Palette, "Appearance & Holographic Presets", NarutoOrange)
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(ThemePreset.entries) { preset ->
@@ -253,23 +298,41 @@ fun SettingsScreen(
                         )
                     }
                 }
-                if (settings.themePreset == ThemePreset.CUSTOM.name) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Custom Accent Color", style = MaterialTheme.typography.labelMedium)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(listOf("CYAN", "ORANGE", "VIOLET", "EMERALD", "GOLD", "CRIMSON")) { key ->
-                            FilterChip(
-                                selected = settings.accentColorKey == key,
-                                onClick = { onUpdateSettings { it.copy(accentColorKey = key) } },
-                                label = { Text(key) }
-                            )
-                        }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Accent Color (Custom Chakra)", style = MaterialTheme.typography.labelMedium)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(listOf("ORANGE", "CYAN", "VIOLET", "EMERALD", "GOLD", "CRIMSON")) { key ->
+                        FilterChip(
+                            selected = settings.accentColorKey == key && settings.themePreset == ThemePreset.CUSTOM.name,
+                            onClick = {
+                                onUpdateSettings {
+                                    it.copy(
+                                        themePreset = ThemePreset.CUSTOM.name,
+                                        accentColorKey = key
+                                    )
+                                }
+                            },
+                            label = { Text(key) }
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 SettingToggle("Glassmorphic Cards", settings.glassmorphism) { b ->
                     onUpdateSettings { it.copy(glassmorphism = b) }
                 }
+                SettingToggle(
+                    label = "Global Holographic Glow",
+                    checked = settings.globalGlowEnabled,
+                    switchTag = "global_glow_switch"
+                ) { b ->
+                    onUpdateSettings { it.copy(globalGlowEnabled = b) }
+                }
+                Text("Holographic Glow Intensity: ${(settings.glowIntensity * 100).toInt()}%", style = MaterialTheme.typography.labelMedium)
+                Slider(
+                    value = settings.glowIntensity,
+                    onValueChange = { g -> onUpdateSettings { it.copy(glowIntensity = g) } },
+                    valueRange = 0.1f..1.0f
+                )
                 Text("Font Scale: ${String.format("%.2fx", settings.fontScale)}", style = MaterialTheme.typography.labelMedium)
                 Slider(
                     value = settings.fontScale,
@@ -281,8 +344,8 @@ fun SettingsScreen(
 
         // 3. Wallpapers & Audio Quick Studios
         item {
-            HoloCard(accentColor = ArcaneViolet) {
-                SectionTitle(Icons.Filled.Wallpaper, "Wallpapers & Audio Studios", ArcaneViolet)
+            HoloCard(accentColor = HolographicPurple) {
+                SectionTitle(Icons.Filled.Wallpaper, "Wallpapers & Audio Studios", HolographicPurple)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(
@@ -307,8 +370,8 @@ fun SettingsScreen(
 
         // 4. AI Mentor & Floating Assistant
         item {
-            HoloCard(accentColor = JadeEmerald) {
-                SectionTitle(Icons.Filled.AutoAwesome, "AI Mentor & Floating Orb", JadeEmerald)
+            HoloCard(accentColor = HolographicPurple) {
+                SectionTitle(Icons.Filled.AutoAwesome, "AI Mentor & Floating Orb", HolographicPurple)
                 SettingToggle("Enable AI Shinobi Sensei", settings.aiEnabled) { b ->
                     onUpdateSettings { it.copy(aiEnabled = b) }
                 }
@@ -339,8 +402,8 @@ fun SettingsScreen(
 
         // 5. Time & Region
         item {
-            HoloCard(accentColor = GoldRankS) {
-                SectionTitle(Icons.Filled.Public, "Time & Region", GoldRankS)
+            HoloCard(accentColor = ChakraCyan) {
+                SectionTitle(Icons.Filled.Public, "Time & Region", ChakraCyan)
                 val amPmEnabled = !settings.use24HourClock
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
@@ -385,12 +448,58 @@ fun SettingsScreen(
 
         // 6. Notifications & Quiet Hours
         item {
-            HoloCard(accentColor = visuals.primaryAccent) {
-                SectionTitle(Icons.Filled.Notifications, "Alerts & Quiet Hours", visuals.primaryAccent)
+            HoloCard(accentColor = GoldRankS) {
+                SectionTitle(Icons.Filled.Notifications, "Alerts & Quiet Hours", GoldRankS)
                 val quietStartLabel = ShinobiTimeUtil.formatTime(settings.quietStartHour * 60, settings.use24HourClock)
                 val quietEndLabel = ShinobiTimeUtil.formatTime(settings.quietEndHour * 60, settings.use24HourClock)
                 SettingToggle("Quiet Hours ($quietStartLabel - $quietEndLabel)", settings.quietHoursEnabled) { b ->
                     onUpdateSettings { it.copy(quietHoursEnabled = b) }
+                }
+                if (settings.quietHoursEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Start: $quietStartLabel", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        onUpdateSettings { it.copy(quietStartHour = (it.quietStartHour + 23) % 24) }
+                                    },
+                                    modifier = Modifier.weight(1f).height(48.dp).testTag("quiet_start_minus"),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) { Text("-1h") }
+                                OutlinedButton(
+                                    onClick = {
+                                        onUpdateSettings { it.copy(quietStartHour = (it.quietStartHour + 1) % 24) }
+                                    },
+                                    modifier = Modifier.weight(1f).height(48.dp).testTag("quiet_start_plus"),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) { Text("+1h") }
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("End: $quietEndLabel", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        onUpdateSettings { it.copy(quietEndHour = (it.quietEndHour + 23) % 24) }
+                                    },
+                                    modifier = Modifier.weight(1f).height(48.dp).testTag("quiet_end_minus"),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) { Text("-1h") }
+                                OutlinedButton(
+                                    onClick = {
+                                        onUpdateSettings { it.copy(quietEndHour = (it.quietEndHour + 1) % 24) }
+                                    },
+                                    modifier = Modifier.weight(1f).height(48.dp).testTag("quiet_end_plus"),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) { Text("+1h") }
+                            }
+                        }
+                    }
                 }
                 SettingToggle("Sound Effects & Alerts (Shuriken / Jutsu)", settings.soundEnabled) { b ->
                     onUpdateSettings { it.copy(soundEnabled = b) }
@@ -467,8 +576,8 @@ fun SettingsScreen(
         }
 
         item {
-            HoloCard(accentColor = JadeEmerald) {
-                SectionTitle(Icons.Filled.Speed, "Animations & Accessibility", JadeEmerald)
+            HoloCard(accentColor = ChakraGreen) {
+                SectionTitle(Icons.Filled.Speed, "Animations & Accessibility", ChakraGreen)
                 SettingToggle("Enable Animations", settings.animationsEnabled) { b ->
                     onUpdateSettings { it.copy(animationsEnabled = b) }
                 }
@@ -575,9 +684,9 @@ fun SettingsScreen(
 
 @Composable
 private fun SectionTitle(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
-    tint: androidx.compose.ui.graphics.Color
+    tint: Color
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
@@ -590,6 +699,7 @@ private fun SectionTitle(
 private fun SettingToggle(
     label: String,
     checked: Boolean,
+    switchTag: String? = null,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -598,6 +708,10 @@ private fun SettingToggle(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = if (switchTag != null) Modifier.testTag(switchTag) else Modifier
+        )
     }
 }
