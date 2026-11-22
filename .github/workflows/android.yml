@@ -11,6 +11,8 @@ jobs:
   build:
     name: Build Debug APK
     runs-on: ubuntu-latest
+    env:
+      GRADLE_OPTS: "-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
 
     steps:
       - name: Checkout repository
@@ -25,24 +27,36 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: "9.3.1"
+          gradle-version: current
           cache-read-only: false
+
+      - name: Accept Android SDK Licenses & Ensure Platform 36.1
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDK_MGR="$(command -v sdkmanager || find "$SDK_ROOT" -name sdkmanager -type f 2>/dev/null | head -n 1)"
+          if [ -n "$SDK_MGR" ]; then
+            yes | "$SDK_MGR" --licenses >/dev/null 2>&1 || true
+            "$SDK_MGR" "platforms;android-36.1" "platforms;android-36" "build-tools;36.0.0" || true
+          fi
 
       - name: Prepare debug keystore
         run: |
-          if [ ! -f debug.keystore ]; then
-            if [ -f debug.keystore.base64 ]; then
-              base64 -d debug.keystore.base64 > debug.keystore
-            else
-              keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-            fi
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore || rm -f debug.keystore
+          fi
+          if [ ! -f debug.keystore ] || ! keytool -list -keystore debug.keystore -storepass android >/dev/null 2>&1; then
+            rm -f debug.keystore
+            keytool -genkeypair -v -keystore debug.keystore \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
           fi
 
       - name: Assemble Debug APK
-        run: gradle assembleDebug --stacktrace
+        run: gradle assembleDebug --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" --console=plain
 
       - name: Run Unit Tests
-        run: gradle testDebugUnitTest --stacktrace
+        run: gradle testDebugUnitTest --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" -Drobolectric.dependency.repo.url=https://maven-central.storage-download.googleapis.com/maven2 --console=plain
 
       - name: Upload Debug APK Artifact
         if: success()
