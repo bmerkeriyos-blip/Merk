@@ -17,6 +17,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
@@ -39,8 +40,11 @@ enum class ShinobiSfx {
 class ShinobiSoundEffectManager(private val context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile
     private var soundPool: SoundPool? = null
-    private val sfxMap = mutableMapOf<ShinobiSfx, Int>()
+    @Volatile
+    private var isReleased: Boolean = false
+    private val sfxMap = ConcurrentHashMap<ShinobiSfx, Int>()
 
     @Volatile
     private var sfxVolume: Float = 0.8f
@@ -70,14 +74,19 @@ class ShinobiSoundEffectManager(private val context: Context) {
         soundPool = pool
 
         scope.launch {
-            val sfxDir = File(context.cacheDir, "shinobi_sfx_v2").apply { mkdirs() }
-            ShinobiSfx.entries.forEach { sfx ->
-                val file = File(sfxDir, "${sfx.name.lowercase()}.wav")
-                if (!file.exists()) {
-                    writeSfxWav(sfx, file)
+            runCatching {
+                val sfxDir = File(context.cacheDir, "shinobi_sfx_v2").apply { mkdirs() }
+                ShinobiSfx.entries.forEach { sfx ->
+                    if (isReleased) return@launch
+                    val file = File(sfxDir, "${sfx.name.lowercase()}.wav")
+                    if (!file.exists()) {
+                        writeSfxWav(sfx, file)
+                    }
+                    if (!isReleased) {
+                        val id = pool.load(file.absolutePath, 1)
+                        sfxMap[sfx] = id
+                    }
                 }
-                val id = pool.load(file.absolutePath, 1)
-                sfxMap[sfx] = id
             }
         }
     }
@@ -95,12 +104,14 @@ class ShinobiSoundEffectManager(private val context: Context) {
     }
 
     fun play(sfx: ShinobiSfx) {
-        if (quietHoursMuted) return
+        if (isReleased || quietHoursMuted) return
         val id = sfxMap[sfx]
         // Keep SFX naturally subtle (capped at 55% normalized pool gain) so alerts never startle
         val effectiveGain = (sfxVolume * 0.55f).coerceIn(0f, 1f)
         if (id != null && soundEnabled && effectiveGain > 0.01f) {
-            soundPool?.play(id, effectiveGain, effectiveGain, 1, 0, 1f)
+            runCatching {
+                soundPool?.play(id, effectiveGain, effectiveGain, 1, 0, 1f)
+            }
         }
         if (hapticsEnabled) {
             triggerHaptic(sfx)
@@ -108,8 +119,9 @@ class ShinobiSoundEffectManager(private val context: Context) {
     }
 
     fun release() {
+        isReleased = true
         scope.cancel()
-        soundPool?.release()
+        runCatching { soundPool?.release() }
         soundPool = null
         sfxMap.clear()
     }

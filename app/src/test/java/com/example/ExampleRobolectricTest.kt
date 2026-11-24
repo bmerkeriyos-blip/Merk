@@ -42,9 +42,7 @@ import com.example.data.local.ShinobiDatabase
 import com.example.data.local.SubtaskEntity
 import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
-import com.example.data.remote.FirestoreSyncRepository
 import com.example.data.repository.ShinobiRepository
-import com.google.firebase.FirebaseApp
 import com.example.ui.components.GlassTier
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.schedule.TaskEditorModalSheet
@@ -464,14 +462,11 @@ class ExampleRobolectricTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         try {
-            if (FirebaseApp.getApps(context).isEmpty()) {
-                FirebaseApp.initializeApp(context)
-            }
             val countingBackend = FakeShinobiAiBackend(
                 contentHandler = { _, _, _ -> "Complete your Rank-B mission before sunset." }
             )
             val service = AiMentorService(backend = countingBackend, retryDelayMs = 0L)
-            val repo = ShinobiRepository(context, db, FirestoreSyncRepository(context))
+            val repo = ShinobiRepository(context, db, remote = null)
             val vm = AiViewModel(repo, service, ShinobiRepository.LOCAL_GUEST_UID)
             val tasks = listOf(
                 PlannerTaskEntity(
@@ -552,6 +547,7 @@ class Android12CompatibilityTest {
             }
         }
 
+        composeRule.waitForIdle()
         // Verify Android 12 starts at 9:00 AM default, switches start time to PM & advances +5m -> 9:05 PM (21:05 -> 1265)
         composeRule.onNodeWithTag("start_time_display").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("start_time_pm").performScrollTo().performClick()

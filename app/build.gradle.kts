@@ -68,7 +68,8 @@ android {
     unitTests {
       isIncludeAndroidResources = true
       all {
-        it.maxHeapSize = "2048m"
+        it.maxHeapSize = "1536m"
+        it.forkEvery = 1
         it.systemProperty(
           "robolectric.dependency.repo.url",
           System.getProperty("robolectric.dependency.repo.url")

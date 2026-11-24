@@ -27,14 +27,16 @@ data class TaskConflict(
 class ShinobiRepository(
     private val context: Context,
     private val db: ShinobiDatabase,
-    private val remote: FirestoreSyncRepository
+    private val remote: FirestoreSyncRepository? = null
 ) {
     companion object {
         const val LOCAL_GUEST_UID = "local_shinobi"
     }
 
     private fun isCloudSyncAllowed(userId: String): Boolean =
-        userId != LOCAL_GUEST_UID && Firebase.auth.currentUser?.uid == userId
+        remote != null &&
+            userId != LOCAL_GUEST_UID &&
+            runCatching { Firebase.auth.currentUser?.uid == userId }.getOrDefault(false)
 
     private suspend fun shouldSyncToCloud(userId: String): Boolean {
         if (!isCloudSyncAllowed(userId)) return false
@@ -70,7 +72,7 @@ class ShinobiRepository(
         val uid = firebaseUser?.uid ?: LOCAL_GUEST_UID
         val existingProfile = profileDao.getProfileOnce(uid)
         if (existingProfile == null) {
-            val remoteProfile = if (firebaseUser != null) remote.fetchUserProfile(uid).getOrNull() else null
+            val remoteProfile = if (firebaseUser != null && remote != null) remote.fetchUserProfile(uid).getOrNull() else null
             val newProfile = if (remoteProfile != null) {
                 UserProfileEntity(
                     uid = uid,
@@ -163,7 +165,8 @@ class ShinobiRepository(
     }
 
     private suspend fun syncProfileToCloud(profile: UserProfileEntity) {
-        remote.upsertUserProfile(
+        val cloudRemote = remote ?: return
+        cloudRemote.upsertUserProfile(
             UserProfileCloud(
                 userId = profile.uid,
                 displayName = profile.displayName,
@@ -192,7 +195,7 @@ class ShinobiRepository(
         val updated = subject.copy(updatedAtEpochMs = System.currentTimeMillis(), synced = false)
         subjectDao.upsertSubject(updated)
         if (shouldSyncToCloud(subject.userId)) {
-            val res = remote.upsertSubject(
+            val res = remote?.upsertSubject(
                 updated.id,
                 CloudSubject(
                     userId = updated.userId,
@@ -204,7 +207,7 @@ class ShinobiRepository(
                     targetHoursPerWeek = updated.targetHoursPerWeek.toLong()
                 )
             )
-            if (res.isSuccess) {
+            if (res?.isSuccess == true) {
                 subjectDao.upsertSubject(updated.copy(synced = true))
             }
         }
@@ -226,7 +229,7 @@ class ShinobiRepository(
         if (shouldSyncToCloud(entity.userId)) {
             val summary = subtasks.joinToString(" | ") { "${if (it.completed) "[x]" else "[ ]"} ${it.title}" }
                 .ifBlank { null }
-            val res = remote.upsertTask(
+            val res = remote?.upsertTask(
                 entity.id,
                 CloudTask(
                     userId = entity.userId,
@@ -249,7 +252,7 @@ class ShinobiRepository(
                     completedAtIso = entity.completedAtIso.ifBlank { null }
                 )
             )
-            if (res.isSuccess) {
+            if (res?.isSuccess == true) {
                 taskDao.upsertTask(entity.copy(synced = true))
             }
         }
@@ -392,7 +395,7 @@ class ShinobiRepository(
         ReminderScheduler.cancelTaskReminders(context, task.id)
         taskDao.deleteById(task.id)
         if (shouldSyncToCloud(task.userId)) {
-            remote.deleteTask(task.id)
+            remote?.deleteTask(task.id)
         }
     }
 
@@ -437,7 +440,7 @@ class ShinobiRepository(
         sessionDao.insertSession(session)
 
         if (shouldSyncToCloud(userId)) {
-            remote.insertStudySession(
+            remote?.insertStudySession(
                 session.id,
                 CloudStudySession(
                     userId = userId,
@@ -478,7 +481,7 @@ class ShinobiRepository(
         val updated = note.copy(updatedAtEpochMs = System.currentTimeMillis(), synced = false)
         notesDao.upsertNote(updated)
         if (shouldSyncToCloud(note.userId)) {
-            remote.upsertNote(
+            remote?.upsertNote(
                 updated.id,
                 CloudNote(
                     userId = updated.userId,
@@ -518,7 +521,7 @@ class ShinobiRepository(
         var syncedCount = 0
         val unsyncedTasks = taskDao.getUnsyncedTasks(userId)
         for (task in unsyncedTasks) {
-            val res = remote.upsertTask(
+            val res = remote?.upsertTask(
                 task.id,
                 CloudTask(
                     userId = task.userId,
@@ -540,7 +543,7 @@ class ShinobiRepository(
                     completedAtIso = task.completedAtIso.ifBlank { null }
                 )
             )
-            if (res.isSuccess) {
+            if (res?.isSuccess == true) {
                 taskDao.upsertTask(task.copy(synced = true))
                 syncedCount++
             }
@@ -548,7 +551,7 @@ class ShinobiRepository(
         profileDao.getProfileOnce(userId)?.let { syncProfileToCloud(it) }
         val allTasks = taskDao.getTasksOnce(userId)
         val profile = profileDao.getProfileOnce(userId)
-        remote.createBackupSnapshot(
+        remote?.createBackupSnapshot(
             summary = "Shinobi Sync (${allTasks.size} missions)",
             taskCount = allTasks.size,
             xpSnapshot = profile?.xp ?: 0
@@ -567,7 +570,7 @@ class ShinobiRepository(
         notesDao.deleteAllNotesForUser(userId)
         settingsDao.deleteSettings(userId)
         profileDao.deleteProfile(userId)
-        return if (isCloudSyncAllowed(userId)) remote.deleteAllUserCloudData() else Result.success(Unit)
+        return if (isCloudSyncAllowed(userId)) remote?.deleteAllUserCloudData() ?: Result.success(Unit) else Result.success(Unit)
     }
 
     fun detectConflicts(tasksForDay: List<PlannerTaskEntity>): List<TaskConflict> {

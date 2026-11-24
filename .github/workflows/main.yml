@@ -9,8 +9,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  GRADLE_OPTS: "-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
-  JAVA_TOOL_OPTIONS: "-Drobolectric.dependency.repo.url=https://maven-central.storage-download.googleapis.com/maven2"
+  GRADLE_OPTS: "-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
 
 jobs:
   build-debug:
@@ -31,6 +30,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+
+      - name: Cache Robolectric SDKs
+        uses: actions/cache@v5
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ runner.os }}-robolectric-sdk-v1
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -61,10 +66,29 @@ jobs:
           fi
 
       - name: Build Debug APK
-        run: gradle assembleDebug --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8" --console=plain
+        run: gradle assembleDebug --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=640m -Dfile.encoding=UTF-8" --console=plain
 
       - name: Run Unit Tests
-        run: gradle testDebugUnitTest --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8" --console=plain
+        run: gradle testDebugUnitTest --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=640m -Dfile.encoding=UTF-8" -Drobolectric.dependency.repo.url=https://repo1.maven.org/maven2 --console=plain
+
+      - name: Print Unit Test Failure Summary
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml"))
+          if not files:
+              print("No TEST-*.xml files were generated.")
+          for path in files:
+              root = ET.parse(path).getroot()
+              for tc in root.findall("testcase"):
+                  for tag in ("failure", "error"):
+                      node = tc.find(tag)
+                      if node is not None:
+                          print(f"FAILED: {tc.attrib.get('classname')} :: {tc.attrib.get('name')}")
+                          print(node.attrib.get("message", ""))
+                          print(node.text or "")
+          PY
 
       - name: Upload Unit Test Report on Failure
         if: failure()
