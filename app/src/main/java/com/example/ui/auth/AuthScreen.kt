@@ -239,7 +239,10 @@ fun AuthScreen(
                             .padding(bottom = 12.dp)
                             .ShinobiGlassModifier(style = errorStyle, showSpecularEdge = false),
                         shape = errorStyle.shape,
-                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.Transparent,
+                            contentColor = CyberTextPrimary
+                        ),
                         border = null
                     ) {
                         Text(

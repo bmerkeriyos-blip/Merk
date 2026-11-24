@@ -1,5 +1,7 @@
 package com.example.ui.navigation
 
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
@@ -274,6 +276,8 @@ private fun MainAuthenticatedScaffold(
     val activeChatId by aiViewModel.activeChatId.collectAsStateWithLifecycle()
     val messages by aiViewModel.messages.collectAsStateWithLifecycle()
     val chatState by aiViewModel.chatState.collectAsStateWithLifecycle()
+    val studyStance by aiViewModel.studyStance.collectAsStateWithLifecycle()
+    val focusSubject by aiViewModel.focusSubject.collectAsStateWithLifecycle()
     val scannerState by aiViewModel.scannerState.collectAsStateWithLifecycle()
     val scansHistory by aiViewModel.scansHistory.collectAsStateWithLifecycle()
     val dailySuggestion by aiViewModel.dailySuggestion.collectAsStateWithLifecycle()
@@ -336,6 +340,7 @@ private fun MainAuthenticatedScaffold(
                         .ShinobiGlassModifier(style = railStyle, showSpecularEdge = false),
                     shape = railStyle.shape,
                     color = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                     tonalElevation = railStyle.tonalElevation,
                     shadowElevation = railStyle.shadowElevation
                 ) {
@@ -544,10 +549,15 @@ private fun MainAuthenticatedScaffold(
                                 tasks = uiState.tasks,
                                 timezoneId = uiState.settings.timezoneId,
                                 pendingDelete = pendingDelete,
+                                subjects = uiState.subjects,
+                                studyStance = studyStance,
+                                focusSubject = focusSubject,
                                 onBack = { navController.popBackStack() },
                                 onSelectPersonality = { p ->
                                     plannerViewModel.updateSettings { it.copy(aiPersonality = p.code) }
                                 },
+                                onSelectStudyStance = { stance -> aiViewModel.setStudyStance(stance) },
+                                onSelectFocusSubject = { subject -> aiViewModel.setFocusSubject(subject) },
                                 onSelectOrCreateChat = { p -> aiViewModel.selectOrCreateChat(p) },
                                 onStartNewChat = { p -> aiViewModel.startNewChat(p) },
                                 onSelectChat = { id -> aiViewModel.selectChat(id) },
@@ -555,6 +565,15 @@ private fun MainAuthenticatedScaffold(
                                 onSendMessage = { text, p, tasks, tz ->
                                     aiViewModel.sendMessage(text, p, tasks, tz)
                                 },
+                                onRetryLast = {
+                                    aiViewModel.retryLastMessage(
+                                        personality = AiPersonality.fromCode(uiState.settings.aiPersonality),
+                                        tasks = uiState.tasks,
+                                        timezoneId = uiState.settings.timezoneId
+                                    )
+                                },
+                                onDismissError = { aiViewModel.dismissChatError() },
+                                onSpeakReply = { replyText -> plannerViewModel.speakMotivation(replyText) },
                                 onConfirmPendingDelete = { aiViewModel.confirmPendingDelete() },
                                 onDismissPendingDelete = { aiViewModel.dismissPendingDelete() },
                                 onOpenScanner = { navController.navigate(ScannerRoute) }
@@ -699,6 +718,7 @@ private fun FloatingGlassBottomNavBar(
                 .ShinobiGlassModifier(style = barStyle),
             shape = barStyle.shape,
             color = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             tonalElevation = barStyle.tonalElevation,
             shadowElevation = barStyle.shadowElevation
         ) {
@@ -802,7 +822,7 @@ private fun AppLockGateScreen(
     var errorText by remember { mutableStateOf<String?>(null) }
 
     fun launchBiometrics() {
-        val activity = context as? FragmentActivity ?: return
+        val activity = context.findFragmentActivity() ?: return
         val executor = ContextCompat.getMainExecutor(activity)
         val prompt = BiometricPrompt(
             activity,
@@ -878,4 +898,10 @@ private fun AppLockGateScreen(
             }
         }
     }
+}
+
+private tailrec fun Context.findFragmentActivity(): FragmentActivity? = when (this) {
+    is FragmentActivity -> this
+    is ContextWrapper -> baseContext.findFragmentActivity()
+    else -> null
 }

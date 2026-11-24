@@ -483,6 +483,7 @@ private fun TimeStepperCard(
         modifier = modifier.ShinobiGlassModifier(style = style, showSpecularEdge = false),
         shape = style.shape,
         color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         border = null,
         tonalElevation = style.tonalElevation
     ) {

@@ -350,6 +350,7 @@ fun ProgressScreen(
                                 .ShinobiGlassModifier(style = examStyle, showSpecularEdge = false),
                             shape = examStyle.shape,
                             color = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                             tonalElevation = examStyle.tonalElevation
                         ) {
                             Row(
@@ -499,7 +500,8 @@ private fun StatMiniBlock(
     Surface(
         modifier = modifier.ShinobiGlassModifier(style = style, showSpecularEdge = false),
         shape = style.shape,
-        color = Color.Transparent
+        color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         Column(
             modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),

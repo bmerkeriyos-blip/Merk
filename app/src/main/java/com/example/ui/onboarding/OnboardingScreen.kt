@@ -312,6 +312,7 @@ fun OnboardingScreen(
                                         .ShinobiGlassModifier(style = presetStyle, showSpecularEdge = false),
                                     shape = presetStyle.shape,
                                     color = Color.Transparent,
+                                    contentColor = CyberTextPrimary,
                                     border = null,
                                     tonalElevation = presetStyle.tonalElevation
                                 ) {
@@ -384,6 +385,7 @@ fun OnboardingScreen(
                                         .ShinobiGlassModifier(style = persStyle, showSpecularEdge = false),
                                     shape = persStyle.shape,
                                     color = Color.Transparent,
+                                    contentColor = CyberTextPrimary,
                                     border = null,
                                     tonalElevation = persStyle.tonalElevation
                                 ) {

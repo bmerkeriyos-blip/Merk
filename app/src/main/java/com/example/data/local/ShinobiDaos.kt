@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -57,10 +58,10 @@ interface PlannerTaskDao {
     @Query("SELECT * FROM planner_tasks WHERE id = :taskId LIMIT 1")
     suspend fun getTaskById(taskId: String): PlannerTaskEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertTask(task: PlannerTaskEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAll(tasks: List<PlannerTaskEntity>)
 
     @Update
@@ -135,7 +136,7 @@ interface ChatDao {
     @Query("SELECT * FROM chat_sessions WHERE userId = :userId ORDER BY updatedAtEpochMs DESC")
     fun observeChats(userId: String): Flow<List<ChatSessionEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertChat(chat: ChatSessionEntity)
 
     @Query("DELETE FROM chat_sessions WHERE id = :chatId")

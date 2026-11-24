@@ -441,7 +441,8 @@ private fun CurrentTimeTimelineBar(
         Surface(
             modifier = Modifier.ShinobiGlassModifier(style = badgeStyle, showSpecularEdge = false),
             shape = badgeStyle.shape,
-            color = Color.Transparent
+            color = Color.Transparent,
+            contentColor = NarutoOrange
         ) {
             Text(
                 text = if (ethLabel != null) "NOW $nowLabel • $ethLabel" else "NOW $nowLabel",
@@ -518,7 +519,8 @@ private fun WeeklyStripSelector(
                             else Modifier
                         ),
                     shape = selectedStyle.shape,
-                    color = Color.Transparent
+                    color = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
                     Column(
                         modifier = Modifier.padding(vertical = 8.dp),

@@ -284,6 +284,7 @@ fun DashboardScreen(
                     modifier = Modifier.ShinobiGlassModifier(style = clockPillStyle, showSpecularEdge = false),
                     shape = clockPillStyle.shape,
                     color = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                     tonalElevation = clockPillStyle.tonalElevation
                 ) {
                     Row(
@@ -373,7 +374,8 @@ fun DashboardScreen(
                                 Surface(
                                     modifier = Modifier.ShinobiGlassModifier(style = levelBadgeStyle, showSpecularEdge = false),
                                     shape = levelBadgeStyle.shape,
-                                    color = Color.Transparent
+                                    color = Color.Transparent,
+                                    contentColor = GoldRankS
                                 ) {
                                     Text(
                                         text = "LEVEL ${rankInfo.level.toString().padStart(2, '0')}",
@@ -465,7 +467,7 @@ fun DashboardScreen(
                     item {
                         ActionChipPill(
                             icon = Icons.Filled.AutoAwesome,
-                            label = "Sensei AI",
+                            label = "AI Sensei",
                             tint = HolographicPurple,
                             tag = "quick_ask_ai",
                             onClick = onOpenAiMentor
@@ -833,7 +835,8 @@ private fun StatPill(
     Surface(
         modifier = Modifier.ShinobiGlassModifier(style = style, showSpecularEdge = false),
         shape = style.shape,
-        color = Color.Transparent
+        color = Color.Transparent,
+        contentColor = tint
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -878,6 +881,7 @@ private fun ActionChipPill(
             .testTag(tag),
         shape = style.shape,
         color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = style.tonalElevation,
         shadowElevation = style.shadowElevation
     ) {

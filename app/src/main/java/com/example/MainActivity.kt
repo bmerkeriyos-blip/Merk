@@ -38,10 +38,9 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-
-        // Configure Firebase App Check BEFORE setContent & any Firestore/AI calls
+        // Configure Firebase App Check as the first call in onCreate before any Firebase/UI calls
         configureAppCheck(this, intent)
+        enableEdgeToEdge()
         ShinobiNotificationManager.ensureChannels(this)
 
         val engine = ShinobiAudioEngine(applicationContext)

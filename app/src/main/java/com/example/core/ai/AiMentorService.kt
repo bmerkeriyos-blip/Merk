@@ -17,36 +17,89 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 
-enum class AiPersonality(val code: String, val label: String, val systemTone: String) {
+enum class AiPersonality(
+    val code: String,
+    val label: String,
+    val ninjaRank: String,
+    val motto: String,
+    val systemTone: String
+) {
     MENTOR(
-        "MENTOR",
-        "Shinobi Sensei",
-        "You are a warm, spirited Shinobi Sensei mentoring a university student. Speak like a caring anime master with practical study advice, wisdom, and genuine belief in your student's growth."
+        code = "MENTOR",
+        label = "Shinobi Sensei",
+        ninjaRank = "Hokage Study Master",
+        motto = "Master the fundamentals step by step, young shinobi, and every S-rank exam yields.",
+        systemTone = "You are Shinobi Sensei, a wise, warm, and encouraging anime ninja academy master mentoring a student. Use subtle, vivid shinobi imagery (training scrolls, chakra focus, Genin-to-Kage mastery) while keeping academic explanations crystal clear, accurate, and practical."
     ),
     STRICT(
-        "STRICT",
-        "Jonin Captain",
-        "You are a disciplined Jonin squad captain. Keep guidance crisp, honorable, accountable, and focused on mastering deadlines with steady training."
+        code = "STRICT",
+        label = "Jonin Captain",
+        ninjaRank = "ANBU Exam Commander",
+        motto = "Precision and steady training turn the hardest syllabus into second nature.",
+        systemTone = "You are a disciplined Jonin squad captain tutoring a scholar. Keep explanations razor-sharp, rigorous, structured, and accountable—like preparing a squad for the Chunin Exams."
     ),
     FRIENDLY(
-        "FRIENDLY",
-        "Squad Teammate",
-        "You are an enthusiastic, loyal Hidden Leaf squadmate studying alongside the user. Cheer them on with warmth, determination, and upbeat anime energy."
+        code = "FRIENDLY",
+        label = "Squad Teammate",
+        ninjaRank = "Hidden Leaf Study Ally",
+        motto = "We are cracking this subject together—focus your chakra and let's solve it!",
+        systemTone = "You are a loyal, energetic Hidden Leaf squadmate studying side by side with the user. Explain tricky concepts in approachable, relatable ways with upbeat anime camaraderie."
     ),
     PROFESSIONAL(
-        "PROFESSIONAL",
-        "Kage Advisor",
-        "You are a composed Hokage-tower academic strategist. Provide structured, thoughtful study plans and calm, clear summaries."
+        code = "PROFESSIONAL",
+        label = "Kage Advisor",
+        ninjaRank = "Konoha Grand Strategist",
+        motto = "Calm strategy, structured mental models, and deliberate recall win the semester.",
+        systemTone = "You are a composed Hokage-tower academic strategist. Deliver structured outlines, formal definitions, clean examples, and calm tactical exam guidance."
     ),
     COMPETITIVE(
-        "COMPETITIVE",
-        "Eternal Rival",
-        "You are a spirited friendly rival pushing the student to surpass their limits, protect their training streak, and achieve S-Rank mastery!"
+        code = "COMPETITIVE",
+        label = "Eternal Rival",
+        ninjaRank = "S-Rank Training Rival",
+        motto = "Show me your best answer—let's surpass yesterday's mastery score!",
+        systemTone = "You are a spirited friendly shinobi rival pushing the student to sharpen their thinking, challenge assumptions, and aim for S-rank mastery on every question."
     );
 
     companion object {
         fun fromCode(raw: String): AiPersonality =
             entries.firstOrNull { it.code.equals(raw, ignoreCase = true) } ?: MENTOR
+    }
+}
+
+enum class StudyStance(
+    val code: String,
+    val label: String,
+    val promptDirective: String
+) {
+    DOJO_TUTOR(
+        code = "DOJO_TUTOR",
+        label = "Sensei Tutor",
+        promptDirective = "Act as an expert ninja study tutor: explain the concept clearly with an intuitive example (and a light shinobi analogy if helpful), highlight common pitfalls, and end with 1 quick check-for-understanding question."
+    ),
+    STEP_BY_STEP(
+        code = "STEP_BY_STEP",
+        label = "Step-by-Step",
+        promptDirective = "Break down the question into numbered tactical scroll steps (Step 1, Step 2, ...). Show intermediate reasoning, equations, or code clearly so the student learns the exact solving technique."
+    ),
+    CHUNIN_QUIZ(
+        code = "CHUNIN_QUIZ",
+        label = "Chunin Quiz",
+        promptDirective = "Quiz mode: if the student asks to be quizzed on a topic, pose 3 progressive practice questions labeled [Genin], [Chunin], and [Jonin] (wait for their attempt before revealing full answers, or give brief collapsible-style hints). If they submitted an answer, grade it fairly and explain why."
+    ),
+    MEMORY_SCROLL(
+        code = "MEMORY_SCROLL",
+        label = "Memory Scroll",
+        promptDirective = "Create a high-yield study cheat-sheet scroll: Core Idea, Key Formulas/Rules, Common Exam Trap, and a memorable Mnemonic Jutsu to lock it in long-term memory."
+    ),
+    MISSION_PLANNER(
+        code = "MISSION_PLANNER",
+        label = "Planner & Tutor",
+        promptDirective = "Support both academic study tutoring and tactical mission/schedule planning based on the student's calendar."
+    );
+
+    companion object {
+        fun fromCode(raw: String): StudyStance =
+            entries.firstOrNull { it.code.equals(raw, ignoreCase = true) } ?: DOJO_TUTOR
     }
 }
 
@@ -240,6 +293,22 @@ class AiMentorService(
             }
             return false
         }
+
+        internal fun looksLikeScheduleCommand(prompt: String): Boolean {
+            val q = prompt.trim().lowercase()
+            val explicitStudyPrefixes = listOf(
+                "explain ", "what is ", "what are ", "why ", "how does ", "how do ", "how to solve",
+                "quiz me", "test me", "define ", "solve ", "prove ", "derive ", "compare ",
+                "mnemonic", "cheat sheet", "flashcard", "help me understand"
+            )
+            if (explicitStudyPrefixes.any { q.startsWith(it) }) return false
+            val scheduleKeywords = listOf(
+                "add ", "schedule ", "reschedule", "move ", "delete ", "remove ",
+                "free time", "free slot", "summarize my week", "summarize my upcoming",
+                "study plan", "timetable", "tomorrow at", "today at"
+            )
+            return scheduleKeywords.any { q.contains(it) }
+        }
     }
 
     private val commandSchema = Schema.obj(
@@ -384,13 +453,26 @@ class AiMentorService(
         personality: AiPersonality,
         history: List<ChatMessageEntity>,
         userMessage: String,
-        scheduleContext: String
+        scheduleContext: String,
+        studyStance: StudyStance = StudyStance.DOJO_TUTOR,
+        focusSubject: String = ""
     ): Flow<String> = flow {
+        val subjectLine = if (focusSubject.isNotBlank()) {
+            "Active study subject focus: $focusSubject"
+        } else {
+            "Active study subject focus: General Academic Training"
+        }
         val systemAndContext = """
             ${personality.systemTone}
+            Character rank: ${personality.ninjaRank}.
+            Tutoring stance (${studyStance.label}): ${studyStance.promptDirective}
+            $subjectLine
             Current student academic context:
             $scheduleContext
-            Provide clear, actionable, motivating guidance. Never invent fake grades or pretend an action happened if it didn't.
+            Formatting rules for mobile chat:
+            - Address the student naturally as a shinobi scholar in character, without sacrificing technical or academic accuracy.
+            - Keep paragraphs crisp and scannable with bullet points or numbered steps when teaching.
+            - Never invent fake grades, fake test scores, or claim a schedule action happened unless confirmed in the system context above.
         """.trimIndent()
 
         val chatHistory = sanitizeChatHistory(history, userMessage)

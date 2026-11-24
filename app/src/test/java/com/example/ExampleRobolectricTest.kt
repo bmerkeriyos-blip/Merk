@@ -17,11 +17,13 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -32,6 +34,7 @@ import com.example.core.ai.AiMentorService
 import com.example.core.ai.AiPersonality
 import com.example.core.ai.ParsedAiCommand
 import com.example.core.ai.ShinobiAiBackend
+import com.example.core.ai.StudyStance
 import com.example.core.common.ShinobiTimeUtil
 import com.example.core.media.AudioPlaybackState
 import com.example.core.media.ShinobiSfx
@@ -39,12 +42,15 @@ import com.example.core.media.ShinobiSoundEffectManager
 import com.example.core.notifications.ReminderScheduler
 import com.example.core.notifications.ShinobiNotificationManager
 import com.example.data.local.ChatMessageEntity
+import com.example.data.local.ChatSessionEntity
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.ShinobiDatabase
+import com.example.data.local.SubjectEntity
 import com.example.data.local.SubtaskEntity
 import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
 import com.example.data.repository.ShinobiRepository
+import com.example.ui.ai.AiMentorScreen
 import com.example.ui.components.GlassTier
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.schedule.TaskEditorModalSheet
@@ -52,6 +58,7 @@ import com.example.ui.settings.SettingsScreen
 import com.example.ui.theme.NarutoOrange
 import com.example.ui.theme.ShinobiGlassModifier
 import com.example.ui.theme.ShinobiPlannerTheme
+import com.example.viewmodel.AiChatUiState
 import com.example.viewmodel.AiViewModel
 import com.example.viewmodel.FocusTimerUiState
 import com.example.viewmodel.PlannerUiState
@@ -70,6 +77,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -269,6 +277,36 @@ class ExampleRobolectricTest {
 
         composeRule.onNodeWithTag("settings_google_sign_in_button").assertIsDisplayed().performClick()
         assertTrue(signInClicked)
+    }
+
+    @Test
+    fun `firebase and google sign in string resources are compiled cleanly`() {
+        val webClientId = context.getString(R.string.default_web_client_id)
+        val googleAppId = context.getString(R.string.google_app_id)
+        val firestoreDbId = context.getString(R.string.firestore_database_id)
+        val recaptchaSiteKey = context.getString(R.string.recaptcha_site_key)
+
+        assertTrue(webClientId.endsWith(".apps.googleusercontent.com"))
+        assertTrue(googleAppId.startsWith("1:"))
+        assertTrue(firestoreDbId.isNotBlank())
+        assertTrue(recaptchaSiteKey.isNotBlank())
+    }
+
+    @Test
+    fun `holo card uses light onSurface content color in dark theme instead of black`() {
+        var resolvedContentColor: Color? = null
+        composeRule.setContent {
+            ShinobiPlannerTheme {
+                com.example.ui.components.HoloCard {
+                    resolvedContentColor = androidx.compose.material3.LocalContentColor.current
+                    Text("Contrast Check")
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        assertNotNull(resolvedContentColor)
+        assertTrue(resolvedContentColor != Color.Black)
+        assertEquals(com.example.ui.theme.CyberTextPrimary, resolvedContentColor)
     }
 
     @Test
@@ -495,6 +533,179 @@ class ExampleRobolectricTest {
         } finally {
             Dispatchers.resetMain()
         }
+    }
+
+    @Test
+    fun `ai sensei classifies study questions separately from schedule commands and injects ninja stance and subject`() = runTest {
+        assertFalse(AiMentorService.looksLikeScheduleCommand("Explain recursion like a Shadow Clone jutsu"))
+        assertFalse(AiMentorService.looksLikeScheduleCommand("Quiz me on derivatives"))
+        assertFalse(AiMentorService.looksLikeScheduleCommand("Solve x^2 - 5x + 6 = 0"))
+        assertTrue(AiMentorService.looksLikeScheduleCommand("Add mathematics study tomorrow at 4 PM"))
+        assertTrue(AiMentorService.looksLikeScheduleCommand("Find free time tomorrow"))
+
+        var capturedSystem = ""
+        val captureBackend = FakeShinobiAiBackend(
+            streamHandler = { _, systemInstruction, _, _ ->
+                capturedSystem = systemInstruction
+                flow { emit("Focus your chakra on Divide & Conquer!") }
+            }
+        )
+        val service = AiMentorService(backend = captureBackend, retryDelayMs = 0L)
+        val chunks = service.streamMentorReply(
+            personality = AiPersonality.COMPETITIVE,
+            history = emptyList(),
+            userMessage = "Quiz me on quicksort",
+            scheduleContext = "No upcoming open missions.",
+            studyStance = StudyStance.CHUNIN_QUIZ,
+            focusSubject = "Algorithms"
+        ).toList()
+
+        assertEquals(listOf("Focus your chakra on Divide & Conquer!"), chunks)
+        assertTrue(capturedSystem.contains(AiPersonality.COMPETITIVE.ninjaRank))
+        assertTrue(capturedSystem.contains(StudyStance.CHUNIN_QUIZ.label))
+        assertTrue(capturedSystem.contains("Active study subject focus: Algorithms"))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `ai viewmodel fast paths study questions without calling classifyCommand unless planner stance is active`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        try {
+            var contentCalls = 0
+            var streamCalls = 0
+            val backend = FakeShinobiAiBackend(
+                contentHandler = { _, _, _ ->
+                    contentCalls++
+                    """{"actionType":"CHAT_ONLY"}"""
+                },
+                streamHandler = { _, _, _, userMsg ->
+                    streamCalls++
+                    flow { emit("Sensei Answer: $userMsg") }
+                }
+            )
+            val service = AiMentorService(backend = backend, retryDelayMs = 0L)
+            val repo = ShinobiRepository(context, db, remote = null)
+            val vm = AiViewModel(repo, service, ShinobiRepository.LOCAL_GUEST_UID)
+
+            vm.setStudyStance(StudyStance.DOJO_TUTOR)
+            vm.setFocusSubject("Algorithms")
+            vm.sendMessage(
+                text = "Explain Big-O notation",
+                personality = AiPersonality.MENTOR,
+                tasks = emptyList(),
+                timezoneId = ShinobiTimeUtil.DEFAULT_TIMEZONE_ID
+            )
+            var attempts = 0
+            while ((streamCalls < 1 || vm.chatState.value != com.example.viewmodel.AiChatUiState.Idle) && attempts < 100) {
+                Thread.sleep(20)
+                advanceUntilIdle()
+                attempts++
+            }
+
+            assertEquals(0, contentCalls)
+            assertEquals(1, streamCalls)
+            val activeId = vm.activeChatId.value
+            assertNotNull(activeId)
+            val savedMsgs = repo.observeMessages(activeId!!).first()
+            assertEquals(2, savedMsgs.size)
+            assertEquals("Explain Big-O notation", savedMsgs[0].content)
+            assertEquals("Sensei Answer: Explain Big-O notation", savedMsgs[1].content)
+
+            vm.setStudyStance(StudyStance.MISSION_PLANNER)
+            vm.sendMessage(
+                text = "Create a weekly revision plan",
+                personality = AiPersonality.MENTOR,
+                tasks = emptyList(),
+                timezoneId = ShinobiTimeUtil.DEFAULT_TIMEZONE_ID
+            )
+            attempts = 0
+            while ((streamCalls < 2 || vm.chatState.value != com.example.viewmodel.AiChatUiState.Idle) && attempts < 100) {
+                Thread.sleep(20)
+                advanceUntilIdle()
+                attempts++
+            }
+            assertEquals(1, contentCalls)
+            assertEquals(2, streamCalls)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
+    fun `ai sensei chat screen renders ninja welcome card switches stance and subject sends question and speaks reply`() {
+        var selectedStance by mutableStateOf(StudyStance.DOJO_TUTOR)
+        var selectedSubject by mutableStateOf("")
+        var chatMessages by mutableStateOf<List<ChatMessageEntity>>(emptyList())
+        val sentPrompts = mutableListOf<String>()
+        val spokenReplies = mutableListOf<String>()
+
+        val subjectAlgo = SubjectEntity(id = "s1", userId = "u1", name = "Algorithms", code = "CS301")
+
+        composeRule.setContent {
+            ShinobiPlannerTheme {
+                AiMentorScreen(
+                    chats = listOf(ChatSessionEntity(id = "c1", userId = "u1", title = "Dojo Study Scroll")),
+                    activeChatId = "c1",
+                    messages = chatMessages,
+                    chatState = AiChatUiState.Idle,
+                    currentPersonalityCode = AiPersonality.MENTOR.code,
+                    tasks = emptyList(),
+                    timezoneId = ShinobiTimeUtil.DEFAULT_TIMEZONE_ID,
+                    pendingDelete = null,
+                    subjects = listOf(subjectAlgo),
+                    studyStance = selectedStance,
+                    focusSubject = selectedSubject,
+                    onBack = {},
+                    onSelectPersonality = {},
+                    onSelectStudyStance = { selectedStance = it },
+                    onSelectFocusSubject = { selectedSubject = it },
+                    onSelectOrCreateChat = {},
+                    onStartNewChat = {},
+                    onSelectChat = {},
+                    onDeleteChat = {},
+                    onSendMessage = { text, _, _, _ ->
+                        sentPrompts += text
+                        chatMessages = listOf(
+                            ChatMessageEntity(id = "m1", chatId = "c1", userId = "u1", role = "user", content = text),
+                            ChatMessageEntity(
+                                id = "m2",
+                                chatId = "c1",
+                                userId = "u1",
+                                role = "model",
+                                content = "Young shinobi, quicksort partitions around a pivot!"
+                            )
+                        )
+                    },
+                    onSpeakReply = { spokenReplies += it },
+                    onConfirmPendingDelete = {},
+                    onDismissPendingDelete = {},
+                    onOpenScanner = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("ai_mentor_screen").assertIsDisplayed()
+        composeRule.onNodeWithText("AI SENSEI").assertIsDisplayed()
+        composeRule.onNodeWithTag("sensei_welcome_card").assertIsDisplayed()
+        composeRule.onNodeWithText("\"${AiPersonality.MENTOR.motto}\"").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("ai_stance_subject_row").performScrollToNode(hasTestTag("ai_stance_chunin_quiz"))
+        composeRule.onNodeWithTag("ai_stance_chunin_quiz").performClick()
+        assertEquals(StudyStance.CHUNIN_QUIZ, selectedStance)
+
+        composeRule.onNodeWithTag("ai_stance_subject_row").performScrollToNode(hasTestTag("ai_subject_s1"))
+        composeRule.onNodeWithTag("ai_subject_s1").performClick()
+        assertEquals("Algorithms", selectedSubject)
+
+        composeRule.onNodeWithTag("ai_chat_input").performTextInput("Explain quicksort")
+        composeRule.onNodeWithTag("ai_send_button").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Explain quicksort"), sentPrompts)
+        composeRule.onNodeWithText("Young shinobi, quicksort partitions around a pivot!").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Read answer aloud").performClick()
+        assertEquals(listOf("Young shinobi, quicksort partitions around a pivot!"), spokenReplies)
     }
 }
 

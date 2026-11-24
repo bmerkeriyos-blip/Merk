@@ -65,6 +65,27 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
+      - name: Prepare & verify google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ ! -f app/google-services.json ] && [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            TRIMMED="$(printf '%s' "$GOOGLE_SERVICES_JSON" | tr -d ' \t\r\n' | head -c 1)"
+            if [ "$TRIMMED" = "{" ]; then
+              printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+            else
+              printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
+            fi
+          fi
+          if [ ! -f app/google-services.json ]; then
+            echo "::error::app/google-services.json is missing! Commit app/google-services.json or set the GOOGLE_SERVICES_JSON GitHub Actions secret so Firebase AI and Google Sign-In work."
+            exit 1
+          fi
+          if ! grep -q "com.aistudio.shinobiplanner.kxmpzq" app/google-services.json; then
+            echo "::error::app/google-services.json does not configure package com.aistudio.shinobiplanner.kxmpzq."
+            exit 1
+          fi
+
       - name: Build Debug APK
         run: gradle assembleDebug --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=in-process -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=640m -Dfile.encoding=UTF-8" --console=plain
 

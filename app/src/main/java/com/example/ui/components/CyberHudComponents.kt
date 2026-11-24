@@ -345,6 +345,7 @@ fun HoloCard(
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = style.shape,
         color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = style.tonalElevation,
         shadowElevation = style.shadowElevation
     ) {
@@ -606,7 +607,8 @@ fun RankBadgeChip(rankCode: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.ShinobiGlassModifier(style = style, showSpecularEdge = false),
         shape = style.shape,
-        color = Color.Transparent
+        color = Color.Transparent,
+        contentColor = badgeColor
     ) {
         Text(
             text = rank.label,
@@ -768,7 +770,10 @@ fun RankUpCelebrationOverlay(
                     .ShinobiGlassModifier(style = style)
                     .testTag("celebration_banner"),
                 shape = style.shape,
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
                 Row(
                     modifier = Modifier

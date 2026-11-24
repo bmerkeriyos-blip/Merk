@@ -69,6 +69,12 @@ class AiViewModel(
     private val _chatState = MutableStateFlow<AiChatUiState>(AiChatUiState.Idle)
     val chatState: StateFlow<AiChatUiState> = _chatState.asStateFlow()
 
+    private val _studyStance = MutableStateFlow(StudyStance.DOJO_TUTOR)
+    val studyStance: StateFlow<StudyStance> = _studyStance.asStateFlow()
+
+    private val _focusSubject = MutableStateFlow("")
+    val focusSubject: StateFlow<String> = _focusSubject.asStateFlow()
+
     private val _scannerState = MutableStateFlow<ScannerUiState>(ScannerUiState.Idle)
     val scannerState: StateFlow<ScannerUiState> = _scannerState.asStateFlow()
 
@@ -78,9 +84,24 @@ class AiViewModel(
     private val _pendingDeleteConfirmation = MutableStateFlow<PendingDestructiveAction?>(null)
     val pendingDeleteConfirmation: StateFlow<PendingDestructiveAction?> = _pendingDeleteConfirmation.asStateFlow()
 
+    private var lastSubmittedPrompt: String? = null
     private var lastSuggestionSignature: String? = null
     private var lastSuggestionFetchMs: Long = 0L
     private var suggestionInFlight: Boolean = false
+
+    fun setStudyStance(stance: StudyStance) {
+        _studyStance.value = stance
+    }
+
+    fun setFocusSubject(subject: String) {
+        _focusSubject.value = subject
+    }
+
+    fun dismissChatError() {
+        if (_chatState.value is AiChatUiState.Error) {
+            _chatState.value = AiChatUiState.Idle
+        }
+    }
 
     fun selectOrCreateChat(personality: AiPersonality = AiPersonality.MENTOR) {
         viewModelScope.launch {
@@ -105,12 +126,13 @@ class AiViewModel(
             val session = ChatSessionEntity(
                 id = id,
                 userId = currentUserId,
-                title = "Mission Briefing",
+                title = "Dojo Study Scroll",
                 personality = personality.code,
-                lastMessagePreview = "Ready for tactical study guidance."
+                lastMessagePreview = "Sensei is ready. Ask any study question!"
             )
             repository.createOrUpdateChat(session)
             _activeChatId.value = id
+            _chatState.value = AiChatUiState.Idle
         }
     }
 
@@ -130,15 +152,34 @@ class AiViewModel(
         }
     }
 
-    fun sendMessage(
-        text: String,
+    fun retryLastMessage(
         personality: AiPersonality,
         tasks: List<PlannerTaskEntity>,
         timezoneId: String
     ) {
+        val retryText = lastSubmittedPrompt ?: return
+        sendMessage(
+            text = retryText,
+            personality = personality,
+            tasks = tasks,
+            timezoneId = timezoneId,
+            saveUserTurn = false
+        )
+    }
+
+    fun sendMessage(
+        text: String,
+        personality: AiPersonality,
+        tasks: List<PlannerTaskEntity>,
+        timezoneId: String,
+        stance: StudyStance = _studyStance.value,
+        subject: String = _focusSubject.value,
+        saveUserTurn: Boolean = true
+    ) {
         val trimmed = text.trim()
         if (trimmed.isBlank()) return
         if (_chatState.value is AiChatUiState.Loading || _chatState.value is AiChatUiState.Streaming) return
+        lastSubmittedPrompt = trimmed
 
         viewModelScope.launch {
             var chatId = _activeChatId.value
@@ -148,7 +189,7 @@ class AiViewModel(
                     ChatSessionEntity(
                         id = chatId,
                         userId = currentUserId,
-                        title = trimmed.take(32),
+                        title = trimmed.take(36),
                         personality = personality.code,
                         lastMessagePreview = trimmed
                     )
@@ -157,13 +198,15 @@ class AiViewModel(
             }
 
             val priorHistory = messages.value.filter { it.chatId == chatId }
-            val userMsg = ChatMessageEntity(
-                chatId = chatId,
-                userId = currentUserId,
-                role = "user",
-                content = trimmed
-            )
-            repository.saveChatMessage(userMsg)
+            if (saveUserTurn) {
+                val userMsg = ChatMessageEntity(
+                    chatId = chatId,
+                    userId = currentUserId,
+                    role = "user",
+                    content = trimmed
+                )
+                repository.saveChatMessage(userMsg)
+            }
             _chatState.value = AiChatUiState.Loading
 
             try {
@@ -171,8 +214,14 @@ class AiViewModel(
                     .toLocalDate()
                     .format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-                val command = aiService.classifyCommand(trimmed, todayIso)
-                val actionSummary = executePlannerCommandIfApplicable(command, tasks, todayIso)
+                val shouldClassify = stance == StudyStance.MISSION_PLANNER ||
+                    AiMentorService.looksLikeScheduleCommand(trimmed)
+                val actionSummary = if (shouldClassify) {
+                    val command = aiService.classifyCommand(trimmed, todayIso)
+                    executePlannerCommandIfApplicable(command, tasks, todayIso)
+                } else {
+                    ""
+                }
 
                 val scheduleSummary = buildScheduleContext(tasks, todayIso, actionSummary)
                 var latestReply = ""
@@ -180,7 +229,9 @@ class AiViewModel(
                     personality = personality,
                     history = priorHistory,
                     userMessage = trimmed,
-                    scheduleContext = scheduleSummary
+                    scheduleContext = scheduleSummary,
+                    studyStance = stance,
+                    focusSubject = subject
                 ).collect { accumulated ->
                     latestReply = accumulated
                     _chatState.value = AiChatUiState.Streaming(accumulated)
@@ -211,7 +262,7 @@ class AiViewModel(
                 throw e
             } catch (e: Exception) {
                 Log.e("AiViewModel", "AI mentor error", e)
-                _chatState.value = AiChatUiState.Error(e.localizedMessage ?: "AI Mentor request failed.")
+                _chatState.value = AiChatUiState.Error(formatAiError(e, "AI Mentor request failed."))
             }
         }
     }
@@ -383,7 +434,7 @@ class AiViewModel(
                 throw e
             } catch (e: Exception) {
                 Log.e("AiViewModel", "Timetable scan error", e)
-                _scannerState.value = ScannerUiState.Error(e.localizedMessage ?: "Timetable scan failed.")
+                _scannerState.value = ScannerUiState.Error(formatAiError(e, "Timetable scan failed."))
             }
         }
     }
@@ -493,5 +544,14 @@ class AiViewModel(
             }
         }
         return result
+    }
+
+    private fun formatAiError(e: Exception, fallback: String): String {
+        val raw = e.localizedMessage?.takeIf { it.isNotBlank() } ?: return fallback
+        return if (raw.contains("Default FirebaseApp is not initialized", ignoreCase = true)) {
+            "Firebase is not initialized in this build (missing google-services.json): $raw"
+        } else {
+            raw
+        }
     }
 }
