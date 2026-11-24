@@ -117,7 +117,8 @@ class PlannerViewModel(
             } else {
                 audioEngine.setPlaylist(existingTracks, autoPlay = false)
             }
-            val currentSettings = uiState.value.settings
+            val currentSettings = repository.observeSettings(currentUserId).first()
+                ?: UserSettingsEntity(userId = currentUserId)
             applyAudioVolumes(currentSettings)
             if (currentSettings.musicOnOpen) {
                 audioEngine.playIfReady()

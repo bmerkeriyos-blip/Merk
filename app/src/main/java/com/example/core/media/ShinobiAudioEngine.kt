@@ -54,38 +54,40 @@ class ShinobiAudioEngine(private val context: Context) {
         initTts()
     }
 
-    private fun ensurePlayer(): ExoPlayer {
+    private fun ensurePlayer(): ExoPlayer? {
         val existing = player
         if (existing != null) return existing
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(C.USAGE_MEDIA)
-            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-            .build()
-        val created = ExoPlayer.Builder(context)
-            .setAudioAttributes(audioAttributes, true) // Automatic audio focus + call pause
-            .setHandleAudioBecomingNoisy(true)
-            .build()
-        created.repeatMode = Player.REPEAT_MODE_ALL
-        created.volume = if (quietHoursMuted) 0f else musicVolume
-        created.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                updatePlaybackSnapshot()
-            }
+        return runCatching {
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build()
+            val created = ExoPlayer.Builder(context)
+                .setAudioAttributes(audioAttributes, true) // Automatic audio focus + call pause
+                .setHandleAudioBecomingNoisy(true)
+                .build()
+            created.repeatMode = Player.REPEAT_MODE_ALL
+            created.volume = if (quietHoursMuted) 0f else musicVolume
+            created.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    updatePlaybackSnapshot()
+                }
 
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                updatePlaybackSnapshot()
-            }
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    updatePlaybackSnapshot()
+                }
 
-            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-                updatePlaybackSnapshot()
-            }
+                override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                    updatePlaybackSnapshot()
+                }
 
-            override fun onRepeatModeChanged(repeatMode: Int) {
-                updatePlaybackSnapshot()
-            }
-        })
-        player = created
-        return created
+                override fun onRepeatModeChanged(repeatMode: Int) {
+                    updatePlaybackSnapshot()
+                }
+            })
+            player = created
+            created
+        }.getOrNull()
     }
 
     private fun updatePlaybackSnapshot() {
@@ -105,10 +107,14 @@ class ShinobiAudioEngine(private val context: Context) {
 
 
     private fun initTts() {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.US
-                ttsReady = true
+        runCatching {
+            tts = TextToSpeech(context) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    runCatching {
+                        tts?.language = Locale.US
+                        ttsReady = true
+                    }
+                }
             }
         }
     }
@@ -145,92 +151,110 @@ class ShinobiAudioEngine(private val context: Context) {
             _playbackState.value = AudioPlaybackState()
             return
         }
-        val exo = ensurePlayer()
-        val currentUri = exo.currentMediaItem?.localConfiguration?.uri?.toString()
-        val sameList = exo.mediaItemCount == tracks.size && currentUri == tracks.firstOrNull()?.uriString
-        if (!sameList) {
-            val items = tracks.map { t ->
-                MediaItem.Builder()
-                    .setUri(Uri.parse(t.uriString))
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(t.title)
-                            .setArtist(t.artist)
-                            .build()
-                    )
-                    .build()
+        val exo = ensurePlayer() ?: return
+        runCatching {
+            val currentUri = exo.currentMediaItem?.localConfiguration?.uri?.toString()
+            val sameList = exo.mediaItemCount == tracks.size && currentUri == tracks.firstOrNull()?.uriString
+            if (!sameList) {
+                val items = tracks.map { t ->
+                    MediaItem.Builder()
+                        .setUri(Uri.parse(t.uriString))
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(t.title)
+                                .setArtist(t.artist)
+                                .build()
+                        )
+                        .build()
+                }
+                exo.setMediaItems(items)
+                exo.prepare()
             }
-            exo.setMediaItems(items)
-            exo.prepare()
-        }
-        if (autoPlay && !quietHoursMuted) {
-            exo.play()
-        }
-        updatePlaybackSnapshot()
-    }
-
-    fun playTrackAt(index: Int) {
-        if (loadedTracks.isEmpty()) return
-        val exo = ensurePlayer()
-        val safeIdx = index.coerceIn(0, loadedTracks.lastIndex)
-        exo.seekTo(safeIdx, 0L)
-        if (!quietHoursMuted) exo.play()
-        updatePlaybackSnapshot()
-    }
-
-    fun togglePlayPause() {
-        if (loadedTracks.isEmpty()) return
-        val exo = ensurePlayer()
-        if (exo.isPlaying) {
-            exo.pause()
-        } else if (!quietHoursMuted) {
-            if (exo.playbackState == Player.STATE_IDLE) exo.prepare()
-            exo.play()
-        }
-        updatePlaybackSnapshot()
-    }
-
-    fun playIfReady() {
-        if (loadedTracks.isEmpty() || quietHoursMuted) return
-        val exo = ensurePlayer()
-        if (!exo.isPlaying) {
-            if (exo.playbackState == Player.STATE_IDLE) exo.prepare()
-            exo.play()
+            if (autoPlay && !quietHoursMuted) {
+                exo.play()
+            }
             updatePlaybackSnapshot()
         }
     }
 
+    fun playTrackAt(index: Int) {
+        if (loadedTracks.isEmpty()) return
+        val exo = ensurePlayer() ?: return
+        runCatching {
+            val safeIdx = index.coerceIn(0, loadedTracks.lastIndex)
+            exo.seekTo(safeIdx, 0L)
+            if (!quietHoursMuted) exo.play()
+            updatePlaybackSnapshot()
+        }
+    }
+
+    fun togglePlayPause() {
+        if (loadedTracks.isEmpty()) return
+        val exo = ensurePlayer() ?: return
+        runCatching {
+            if (exo.isPlaying) {
+                exo.pause()
+            } else if (!quietHoursMuted) {
+                if (exo.playbackState == Player.STATE_IDLE) exo.prepare()
+                exo.play()
+            }
+            updatePlaybackSnapshot()
+        }
+    }
+
+    fun playIfReady() {
+        if (loadedTracks.isEmpty() || quietHoursMuted) return
+        val exo = ensurePlayer() ?: return
+        runCatching {
+            if (!exo.isPlaying) {
+                if (exo.playbackState == Player.STATE_IDLE) exo.prepare()
+                exo.play()
+                updatePlaybackSnapshot()
+            }
+        }
+    }
+
     fun pause() {
-        player?.pause()
-        updatePlaybackSnapshot()
+        runCatching {
+            player?.pause()
+            updatePlaybackSnapshot()
+        }
     }
 
     fun next() {
         val exo = player ?: return
-        if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else exo.seekTo(0, 0L)
-        updatePlaybackSnapshot()
+        runCatching {
+            if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else exo.seekTo(0, 0L)
+            updatePlaybackSnapshot()
+        }
     }
 
     fun previous() {
         val exo = player ?: return
-        if (exo.hasPreviousMediaItem()) exo.seekToPreviousMediaItem() else exo.seekTo(0, 0L)
-        updatePlaybackSnapshot()
+        runCatching {
+            if (exo.hasPreviousMediaItem()) exo.seekToPreviousMediaItem() else exo.seekTo(0, 0L)
+            updatePlaybackSnapshot()
+        }
     }
 
     fun toggleShuffle() {
-        val exo = ensurePlayer()
-        exo.shuffleModeEnabled = !exo.shuffleModeEnabled
-        updatePlaybackSnapshot()
+        val exo = ensurePlayer() ?: return
+        runCatching {
+            exo.shuffleModeEnabled = !exo.shuffleModeEnabled
+            updatePlaybackSnapshot()
+        }
     }
 
     fun cycleRepeatMode() {
-        val exo = ensurePlayer()
-        exo.repeatMode = when (exo.repeatMode) {
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_OFF
-            else -> Player.REPEAT_MODE_ALL
+        val exo = ensurePlayer() ?: return
+        runCatching {
+            exo.repeatMode = when (exo.repeatMode) {
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_OFF
+                else -> Player.REPEAT_MODE_ALL
+            }
+            updatePlaybackSnapshot()
         }
-        updatePlaybackSnapshot()
     }
 
     fun updateVolumes(
@@ -249,9 +273,11 @@ class ShinobiAudioEngine(private val context: Context) {
             hapticsEnabled = haptics,
             quietMuted = quietMuted
         )
-        player?.volume = if (quietMuted) 0f else musicVolume
-        if (quietMuted && player?.isPlaying == true) {
-            player?.pause()
+        runCatching {
+            player?.volume = if (quietMuted) 0f else musicVolume
+            if (quietMuted && player?.isPlaying == true) {
+                player?.pause()
+            }
         }
     }
 
@@ -261,18 +287,22 @@ class ShinobiAudioEngine(private val context: Context) {
 
     fun speakMotivational(text: String) {
         if (!ttsReady || quietHoursMuted || motivationalVolume <= 0.05f) return
-        val params = android.os.Bundle().apply {
-            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, motivationalVolume)
+        runCatching {
+            val params = android.os.Bundle().apply {
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, motivationalVolume)
+            }
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "shinobi_motivation_${System.currentTimeMillis()}")
         }
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "shinobi_motivation_${System.currentTimeMillis()}")
     }
 
     fun release() {
-        player?.release()
+        runCatching { player?.release() }
         player = null
         soundEffectManager.release()
-        tts?.stop()
-        tts?.shutdown()
+        runCatching {
+            tts?.stop()
+            tts?.shutdown()
+        }
         tts = null
     }
 

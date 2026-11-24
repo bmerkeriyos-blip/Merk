@@ -67,7 +67,9 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
         context.applicationContext.getSharedPreferences("shinobi_auth_prefs", Context.MODE_PRIVATE)
     }
 
-    var currentUser by remember { mutableStateOf(Firebase.auth.currentUser) }
+    var currentUser by remember {
+        mutableStateOf(runCatching { Firebase.auth.currentUser }.getOrNull())
+    }
     var skippedSignIn by remember {
         mutableStateOf(authPrefs.getBoolean("skipped_sign_in", false))
     }
@@ -76,8 +78,9 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
         val listener = FirebaseAuth.AuthStateListener { auth ->
             currentUser = auth.currentUser
         }
-        Firebase.auth.addAuthStateListener(listener)
-        onDispose { Firebase.auth.removeAuthStateListener(listener) }
+        val firebaseAuth = runCatching { Firebase.auth }.getOrNull()
+        runCatching { firebaseAuth?.addAuthStateListener(listener) }
+        onDispose { runCatching { firebaseAuth?.removeAuthStateListener(listener) } }
     }
 
     val activeUser = currentUser
@@ -85,12 +88,12 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
         ShinobiPlannerTheme {
             AuthScreen(
                 onAuthSuccess = {
-                    authPrefs.edit().putBoolean("skipped_sign_in", false).commit()
+                    authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
                     skippedSignIn = false
-                    currentUser = Firebase.auth.currentUser
+                    currentUser = runCatching { Firebase.auth.currentUser }.getOrNull()
                 },
                 onSkipForNow = {
-                    authPrefs.edit().putBoolean("skipped_sign_in", true).commit()
+                    authPrefs.edit().putBoolean("skipped_sign_in", true).apply()
                     skippedSignIn = true
                 }
             )
@@ -98,10 +101,16 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
     } else {
         val isSignedInWithGoogle = activeUser != null
         val uid = activeUser?.uid ?: ShinobiRepository.LOCAL_GUEST_UID
-        key(uid) {
+        key(uid, isSignedInWithGoogle) {
             val db = remember(context) { ShinobiDatabase.getInstance(context.applicationContext) }
-            val remote = remember(context) { FirestoreSyncRepository(context.applicationContext) }
-            val repository = remember(uid) { ShinobiRepository(context.applicationContext, db, remote) }
+            val remote = remember(context, isSignedInWithGoogle) {
+                if (isSignedInWithGoogle) {
+                    runCatching { FirestoreSyncRepository(context.applicationContext) }.getOrNull()
+                } else null
+            }
+            val repository = remember(uid, remote) {
+                ShinobiRepository(context.applicationContext, db, remote)
+            }
             val aiService = remember { AiMentorService() }
 
             val plannerViewModel: PlannerViewModel = viewModel(
@@ -137,12 +146,14 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
             LaunchedEffect(uid, isSignedInWithGoogle) {
                 plannerViewModel.initializeSession(activeUser)
                 if (isSignedInWithGoogle) {
-                    CloudSyncWorker.schedulePeriodicSync(context.applicationContext)
+                    runCatching { CloudSyncWorker.schedulePeriodicSync(context.applicationContext) }
                 }
-                DailyBriefingWorker.schedule(context.applicationContext)
+                runCatching { DailyBriefingWorker.schedule(context.applicationContext) }
             }
 
-            val credentialManager = remember(context) { CredentialManager.create(context) }
+            val credentialManager = remember(context) {
+                runCatching { CredentialManager.create(context) }.getOrNull()
+            }
 
             ShinobiAppShell(
                 plannerViewModel = plannerViewModel,
@@ -154,9 +165,9 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
                         context = context,
                         credentialManager = credentialManager,
                         onAuthSuccess = {
-                            authPrefs.edit().putBoolean("skipped_sign_in", false).commit()
+                            authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
                             skippedSignIn = false
-                            currentUser = Firebase.auth.currentUser
+                            currentUser = runCatching { Firebase.auth.currentUser }.getOrNull()
                         },
                         onAuthError = { msg ->
                             plannerViewModel.postStatusMessage(msg)
@@ -166,13 +177,13 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
                 },
                 onSignOut = {
                     audioEngine.pause()
-                    authPrefs.edit().putBoolean("skipped_sign_in", false).commit()
+                    authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
                     skippedSignIn = false
                     signOutUser(credentialManager, scope)
                 },
                 onDeleteAccount = {
                     audioEngine.pause()
-                    authPrefs.edit().putBoolean("skipped_sign_in", false).commit()
+                    authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
                     skippedSignIn = false
                     signOutUser(credentialManager, scope)
                 }

@@ -30,7 +30,7 @@ object ShinobiNotificationManager {
     const val EXTRA_NOTIF_ID = "extra_notif_id"
 
     fun ensureChannels(context: Context) {
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         val channels = listOf(
             NotificationChannel(CHANNEL_CLASSES, "Class Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Upcoming university lectures and labs"
@@ -49,7 +49,7 @@ object ShinobiNotificationManager {
                 description = "Morning briefing, evening review, and streak-at-risk alerts"
             }
         )
-        nm.createNotificationChannels(channels)
+        runCatching { nm.createNotificationChannels(channels) }
     }
 
     fun hasNotificationPermission(context: Context): Boolean {
@@ -108,7 +108,7 @@ object ShinobiNotificationManager {
         )
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_shinobi_notification)
             .setContentTitle("Mission Alert: $title")
             .setContentText("Category: $category — Tap to open Shinobi Dojo")
             .setPriority(
@@ -120,10 +120,8 @@ object ShinobiNotificationManager {
             .addAction(0, "Snooze 10m", snoozePending)
             .addAction(0, "Mark Done", donePending)
 
-        try {
+        runCatching {
             NotificationManagerCompat.from(context).notify(notifId, builder.build())
-        } catch (_: SecurityException) {
-            // Permission revoked concurrently
         }
     }
 
@@ -144,7 +142,7 @@ object ShinobiNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_shinobi_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -152,9 +150,8 @@ object ShinobiNotificationManager {
             .setAutoCancel(true)
             .setContentIntent(openPending)
             .build()
-        try {
+        runCatching {
             NotificationManagerCompat.from(context).notify(notifId, notification)
-        } catch (_: SecurityException) {
         }
     }
 }

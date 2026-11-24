@@ -30,7 +30,7 @@ object ReminderScheduler {
         val zone = ShinobiTimeUtil.safeZoneId(ShinobiTimeUtil.DEFAULT_TIMEZONE_ID)
         val eventZdt = ZonedDateTime.of(date, LocalTime.of(startHour, startMin), zone)
 
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
 
         offsets.forEachIndexed { idx, offsetMins ->
             val triggerMillis = eventZdt.minusMinutes(offsetMins.toLong()).toInstant().toEpochMilli()
@@ -62,7 +62,7 @@ object ReminderScheduler {
         notifId: Int,
         snoozeMinutes: Int = 10
     ) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val triggerMillis = System.currentTimeMillis() + snoozeMinutes * 60_000L
         val intent = Intent(context, ReminderReceiver::class.java).apply {
             action = ShinobiNotificationManager.ACTION_REMINDER
@@ -86,22 +86,27 @@ object ReminderScheduler {
         pending: PendingIntent
     ) {
         val canExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            alarmManager.canScheduleExactAlarms()
+            runCatching { alarmManager.canScheduleExactAlarms() }.getOrDefault(false)
         } else true
 
         if (canExact) {
-            try {
+            val exactOk = runCatching {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pending)
-            } catch (_: SecurityException) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pending)
+            }.isSuccess
+            if (!exactOk) {
+                runCatching {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pending)
+                }
             }
         } else {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pending)
+            runCatching {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pending)
+            }
         }
     }
 
     fun cancelTaskReminders(context: Context, taskId: String) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         for (idx in 0..5) {
             val reqCode = requestCodeFor(taskId, idx)
             val intent = Intent(context, ReminderReceiver::class.java).apply {
@@ -114,8 +119,8 @@ object ReminderScheduler {
                 PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
             )
             if (pending != null) {
-                alarmManager.cancel(pending)
-                pending.cancel()
+                runCatching { alarmManager.cancel(pending) }
+                runCatching { pending.cancel() }
             }
         }
     }

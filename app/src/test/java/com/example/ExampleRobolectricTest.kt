@@ -14,7 +14,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -75,6 +77,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -564,6 +567,18 @@ class Android12CompatibilityTest {
     fun `android 12 notifications sound effects and Room MIGRATION_2_3 succeed cleanly`() {
         assertTrue(ShinobiNotificationManager.hasNotificationPermission(context))
         ShinobiNotificationManager.ensureChannels(context)
+        ShinobiNotificationManager.showTaskReminder(
+            context = context,
+            taskId = "sdk31_alarm",
+            title = "OS Exam Prep",
+            category = "EXAM",
+            notifId = 1099
+        )
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val posted = Shadows.shadowOf(nm).allNotifications
+        assertTrue(posted.isNotEmpty())
+        assertEquals(R.drawable.ic_shinobi_notification, posted.first().smallIcon.resId)
+
         val sfxManager = ShinobiSoundEffectManager(context)
         sfxManager.updateConfig(volume = 0.7f, soundEnabled = true, hapticsEnabled = true, quietMuted = false)
         sfxManager.play(ShinobiSfx.SHURIKEN)
@@ -655,5 +670,41 @@ class Android12CompatibilityTest {
                 assertEquals(1, c.getInt(0))
             }
         }
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [31], qualifiers = "w411dp-h891dp")
+class MainActivityAndroid12LaunchTest {
+
+    @get:Rule
+    val activityRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun `cold launch MainActivity on Android 12 traverses Auth Skip Onboarding and all main tabs cleanly`() {
+        activityRule.waitForIdle()
+        activityRule.onNodeWithTag("skip_sign_in_button").assertIsDisplayed().performClick()
+
+        activityRule.waitUntil(timeoutMillis = 5_000L) {
+            activityRule.onAllNodesWithTag("onboarding_skip_button").fetchSemanticsNodes().isNotEmpty()
+        }
+        activityRule.onNodeWithTag("onboarding_skip_button").assertIsDisplayed().performClick()
+
+        activityRule.waitUntil(timeoutMillis = 5_000L) {
+            activityRule.onAllNodesWithTag("dashboard_screen").fetchSemanticsNodes().isNotEmpty()
+        }
+        activityRule.onNodeWithTag("dashboard_screen").assertIsDisplayed()
+
+        activityRule.onNodeWithTag("nav_schedule").performClick()
+        activityRule.waitForIdle()
+        activityRule.onNodeWithTag("nav_missions").performClick()
+        activityRule.waitForIdle()
+        activityRule.onNodeWithTag("nav_progress").performClick()
+        activityRule.waitForIdle()
+        activityRule.onNodeWithTag("nav_settings").performClick()
+        activityRule.waitForIdle()
+        activityRule.onNodeWithTag("nav_home").performClick()
+        activityRule.waitForIdle()
+        activityRule.onNodeWithTag("dashboard_screen").assertIsDisplayed()
     }
 }

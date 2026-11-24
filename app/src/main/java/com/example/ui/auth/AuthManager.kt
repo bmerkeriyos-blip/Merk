@@ -37,13 +37,18 @@ fun FirebaseAuth.authStateFlow(): Flow<FirebaseUser?> = callbackFlow {
 
 fun attemptAutoSignIn(
     context: Context,
-    credentialManager: CredentialManager,
+    credentialManager: CredentialManager?,
     onAuthSuccess: () -> Unit,
     onUnauthenticated: () -> Unit,
     scope: CoroutineScope
 ) {
-    if (Firebase.auth.currentUser != null) {
+    if (runCatching { Firebase.auth.currentUser }.getOrNull() != null) {
         onAuthSuccess()
+        return
+    }
+    val activity = context as? Activity
+    if (credentialManager == null || activity == null) {
+        onUnauthenticated()
         return
     }
     val clientId = resolveWebClientId(context)
@@ -61,7 +66,7 @@ fun attemptAutoSignIn(
         .build()
     scope.launch {
         try {
-            val cred = credentialManager.getCredential(context, request).credential
+            val cred = credentialManager.getCredential(activity, request).credential
             if (cred is CustomCredential && cred.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 val token = GoogleIdTokenCredential.createFrom(cred.data).idToken
                 Firebase.auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
@@ -77,12 +82,16 @@ fun attemptAutoSignIn(
 
 fun onGoogleSignInClicked(
     context: Context,
-    credentialManager: CredentialManager,
+    credentialManager: CredentialManager?,
     onAuthSuccess: () -> Unit,
     onAuthError: (String) -> Unit,
     scope: CoroutineScope,
     onAuthCancelled: () -> Unit = {}
 ) {
+    if (credentialManager == null) {
+        onAuthError("Google Sign-In is unavailable on this device. Tap Skip for Now to use Shinobi Planner locally.")
+        return
+    }
     val clientId = resolveWebClientId(context)
     if (clientId == null) {
         onAuthError("Google Sign-In configuration missing: default_web_client_id not found")
@@ -115,18 +124,18 @@ fun onGoogleSignInClicked(
 }
 
 fun signOutUser(
-    credentialManager: CredentialManager,
+    credentialManager: CredentialManager?,
     scope: CoroutineScope,
     onSignOutComplete: () -> Unit = {}
 ) {
     scope.launch {
         withContext(NonCancellable) {
             try {
-                credentialManager.clearCredentialState(ClearCredentialStateRequest())
+                credentialManager?.clearCredentialState(ClearCredentialStateRequest())
             } catch (e: Exception) {
                 Log.w("Auth", "Failed to clear credential state: ${e.message}")
             } finally {
-                Firebase.auth.signOut()
+                runCatching { Firebase.auth.signOut() }
                 onSignOutComplete()
             }
         }

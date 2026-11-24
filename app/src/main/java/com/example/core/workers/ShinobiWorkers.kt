@@ -17,7 +17,7 @@ class CloudSyncWorker(
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val uid = Firebase.auth.currentUser?.uid ?: return Result.success()
+        val uid = runCatching { Firebase.auth.currentUser?.uid }.getOrNull() ?: return Result.success()
         val db = ShinobiDatabase.getInstance(applicationContext)
         val settings = db.userSettingsDao().getSettingsOnce(uid)
         if (settings?.offlineModeOnly == true) return Result.success()
@@ -68,7 +68,7 @@ class DailyBriefingWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         val db = ShinobiDatabase.getInstance(applicationContext)
-        val uid = Firebase.auth.currentUser?.uid ?: ShinobiRepository.LOCAL_GUEST_UID
+        val uid = runCatching { Firebase.auth.currentUser?.uid }.getOrNull() ?: ShinobiRepository.LOCAL_GUEST_UID
         if (db.userProfileDao().getProfileOnce(uid) == null) return Result.success()
         val settings = db.userSettingsDao().getSettingsOnce(uid)
         val tz = settings?.timezoneId ?: ShinobiTimeUtil.DEFAULT_TIMEZONE_ID
