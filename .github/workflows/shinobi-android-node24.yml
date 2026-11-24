@@ -65,26 +65,33 @@ jobs:
             if [ "$TRIMMED" = "{" ]; then
               printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
             else
-              printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
+              printf '%s' "$GOOGLE_SERVICES_JSON" | tr -d ' \t\r\n' | base64 -d > app/google-services.json
             fi
           fi
           if [ ! -f app/google-services.json ]; then
-            echo "::error::app/google-services.json is missing! Commit app/google-services.json or set the GOOGLE_SERVICES_JSON GitHub Actions secret so Firebase AI and Google Sign-In work."
+            echo "::error::app/google-services.json is missing! AI Studio does not push app/google-services.json to GitHub automatically. Add GitHub Actions secret GOOGLE_SERVICES_JSON (Repo Settings -> Secrets and variables -> Actions -> New repository secret) with the contents of app/google-services.json, or commit app/google-services.json directly."
             exit 1
           fi
-          if ! grep -q "com.aistudio.shinobiplanner.kxmpzq" app/google-services.json; then
-            echo "::error::app/google-services.json does not configure package com.aistudio.shinobiplanner.kxmpzq."
-            exit 1
-          fi
+          python3 - <<'PY'
+          import json, sys
+          with open("app/google-services.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          pkgs = [c.get("client_info", {}).get("android_client_info", {}).get("package_name") for c in data.get("client", [])]
+          if "com.aistudio.shinobiplanner.kxmpzq" not in pkgs:
+              print("::error::app/google-services.json does not configure package com.aistudio.shinobiplanner.kxmpzq.")
+              sys.exit(1)
+          print("Verified app/google-services.json for packages:", pkgs)
+          PY
 
       - name: Assemble Debug APK
-        run: gradle assembleDebug --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8" --console=plain
+        run: gradle :app:assembleDebug --max-workers=2 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8" --console=plain
 
       - name: Run Unit Tests
-        run: gradle testDebugUnitTest --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8" --console=plain
+        id: unit_tests
+        run: gradle :app:testDebugUnitTest --max-workers=1 --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon -Pksp.incremental=false -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8" --console=plain
 
       - name: Upload Unit Test Report on Failure
-        if: failure()
+        if: failure() && steps.unit_tests.outcome == 'failure'
         uses: actions/upload-artifact@v6
         with:
           name: unit-test-report-node24
