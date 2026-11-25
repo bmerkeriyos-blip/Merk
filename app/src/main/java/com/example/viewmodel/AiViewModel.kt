@@ -75,6 +75,9 @@ class AiViewModel(
     private val _focusSubject = MutableStateFlow("")
     val focusSubject: StateFlow<String> = _focusSubject.asStateFlow()
 
+    private val _responseTier = MutableStateFlow(AiResponseTier.BALANCED)
+    val responseTier: StateFlow<AiResponseTier> = _responseTier.asStateFlow()
+
     private val _scannerState = MutableStateFlow<ScannerUiState>(ScannerUiState.Idle)
     val scannerState: StateFlow<ScannerUiState> = _scannerState.asStateFlow()
 
@@ -95,6 +98,10 @@ class AiViewModel(
 
     fun setFocusSubject(subject: String) {
         _focusSubject.value = subject
+    }
+
+    fun setResponseTier(tier: AiResponseTier) {
+        _responseTier.value = tier
     }
 
     fun dismissChatError() {
@@ -174,6 +181,7 @@ class AiViewModel(
         timezoneId: String,
         stance: StudyStance = _studyStance.value,
         subject: String = _focusSubject.value,
+        tier: AiResponseTier = _responseTier.value,
         saveUserTurn: Boolean = true
     ) {
         val trimmed = text.trim()
@@ -231,7 +239,8 @@ class AiViewModel(
                     userMessage = trimmed,
                     scheduleContext = scheduleSummary,
                     studyStance = stance,
-                    focusSubject = subject
+                    focusSubject = subject,
+                    responseTier = tier
                 ).collect { accumulated ->
                     latestReply = accumulated
                     _chatState.value = AiChatUiState.Streaming(accumulated)

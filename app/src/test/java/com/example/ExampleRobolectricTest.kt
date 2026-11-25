@@ -32,6 +32,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import com.example.core.ai.AiMentorService
 import com.example.core.ai.AiPersonality
+import com.example.core.ai.AiResponseTier
 import com.example.core.ai.ParsedAiCommand
 import com.example.core.ai.ShinobiAiBackend
 import com.example.core.ai.StudyStance
@@ -636,6 +637,7 @@ class ExampleRobolectricTest {
     fun `ai sensei chat screen renders ninja welcome card switches stance and subject sends question and speaks reply`() {
         var selectedStance by mutableStateOf(StudyStance.DOJO_TUTOR)
         var selectedSubject by mutableStateOf("")
+        var selectedTier by mutableStateOf(AiResponseTier.BALANCED)
         var chatMessages by mutableStateOf<List<ChatMessageEntity>>(emptyList())
         val sentPrompts = mutableListOf<String>()
         val spokenReplies = mutableListOf<String>()
@@ -656,10 +658,12 @@ class ExampleRobolectricTest {
                     subjects = listOf(subjectAlgo),
                     studyStance = selectedStance,
                     focusSubject = selectedSubject,
+                    responseTier = selectedTier,
                     onBack = {},
                     onSelectPersonality = {},
                     onSelectStudyStance = { selectedStance = it },
                     onSelectFocusSubject = { selectedSubject = it },
+                    onSelectResponseTier = { selectedTier = it },
                     onSelectOrCreateChat = {},
                     onStartNewChat = {},
                     onSelectChat = {},
@@ -686,6 +690,8 @@ class ExampleRobolectricTest {
         }
 
         composeRule.onNodeWithTag("ai_mentor_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_messages_list").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_voice_input_button").assertIsDisplayed()
         composeRule.onNodeWithText("AI SENSEI").assertIsDisplayed()
         composeRule.onNodeWithTag("sensei_welcome_card").assertIsDisplayed()
         composeRule.onNodeWithText("\"${AiPersonality.MENTOR.motto}\"").assertIsDisplayed()
@@ -693,6 +699,10 @@ class ExampleRobolectricTest {
         composeRule.onNodeWithTag("ai_stance_subject_row").performScrollToNode(hasTestTag("ai_stance_chunin_quiz"))
         composeRule.onNodeWithTag("ai_stance_chunin_quiz").performClick()
         assertEquals(StudyStance.CHUNIN_QUIZ, selectedStance)
+
+        composeRule.onNodeWithTag("ai_stance_subject_row").performScrollToNode(hasTestTag("ai_tier_deep_reasoning"))
+        composeRule.onNodeWithTag("ai_tier_deep_reasoning").performClick()
+        assertEquals(AiResponseTier.DEEP_REASONING, selectedTier)
 
         composeRule.onNodeWithTag("ai_stance_subject_row").performScrollToNode(hasTestTag("ai_subject_s1"))
         composeRule.onNodeWithTag("ai_subject_s1").performClick()
@@ -706,6 +716,44 @@ class ExampleRobolectricTest {
         composeRule.onNodeWithText("Young shinobi, quicksort partitions around a pivot!").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Read answer aloud").performClick()
         assertEquals(listOf("Young shinobi, quicksort partitions around a pivot!"), spokenReplies)
+    }
+
+    @Test
+    fun `ai sensei routes fast balanced and deep reasoning tiers with automatic fallback`() = runTest {
+        val fastBackend = FakeShinobiAiBackend(
+            streamHandler = { _, _, _, _ -> flow { emit("Fast answer!") } }
+        )
+        val fastService = AiMentorService(backend = fastBackend, retryDelayMs = 0L)
+        val fastReply = fastService.streamMentorReply(
+            personality = AiPersonality.FRIENDLY,
+            history = emptyList(),
+            userMessage = "Define Big O",
+            scheduleContext = "No tasks",
+            responseTier = AiResponseTier.FAST
+        ).toList()
+        assertEquals(listOf("Fast answer!"), fastReply)
+        assertEquals(listOf(AiMentorService.LITE_MODEL), fastBackend.calledModels)
+
+        val deepFallbackBackend = FakeShinobiAiBackend(
+            streamHandler = { modelName, _, _, _ ->
+                flow {
+                    if (modelName == AiMentorService.DEEP_REASONING_MODEL) {
+                        throw IllegalStateException("Blaze billing required for gemini-4-argon")
+                    }
+                    emit("Fallback balanced reasoning!")
+                }
+            }
+        )
+        val deepService = AiMentorService(backend = deepFallbackBackend, retryDelayMs = 0L)
+        val deepReply = deepService.streamMentorReply(
+            personality = AiPersonality.PROFESSIONAL,
+            history = emptyList(),
+            userMessage = "Prove Bayes theorem",
+            scheduleContext = "No tasks",
+            responseTier = AiResponseTier.DEEP_REASONING
+        ).toList()
+        assertEquals(listOf("Fallback balanced reasoning!"), deepReply)
+        assertEquals(listOf(AiMentorService.DEEP_REASONING_MODEL, AiMentorService.PRIMARY_MODEL), deepFallbackBackend.calledModels)
     }
 }
 

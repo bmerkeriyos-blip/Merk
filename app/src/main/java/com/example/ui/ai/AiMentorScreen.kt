@@ -1,6 +1,12 @@
 package com.example.ui.ai
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -36,11 +42,13 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.School
@@ -87,6 +95,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.core.ai.AiPersonality
+import com.example.core.ai.AiResponseTier
 import com.example.core.ai.StudyStance
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ChatSessionEntity
@@ -133,10 +142,12 @@ fun AiMentorScreen(
     subjects: List<SubjectEntity> = emptyList(),
     studyStance: StudyStance = StudyStance.DOJO_TUTOR,
     focusSubject: String = "",
+    responseTier: AiResponseTier = AiResponseTier.BALANCED,
     onBack: () -> Unit,
     onSelectPersonality: (AiPersonality) -> Unit,
     onSelectStudyStance: (StudyStance) -> Unit = {},
     onSelectFocusSubject: (String) -> Unit = {},
+    onSelectResponseTier: (AiResponseTier) -> Unit = {},
     onSelectOrCreateChat: (AiPersonality) -> Unit,
     onStartNewChat: (AiPersonality) -> Unit,
     onSelectChat: (String) -> Unit,
@@ -157,6 +168,22 @@ fun AiMentorScreen(
     var inputText by remember { mutableStateOf("") }
     var showHistorySheet by remember { mutableStateOf(false) }
     var copiedMessageId by remember { mutableStateOf<String?>(null) }
+    var voiceNotice by remember { mutableStateOf<String?>(null) }
+
+    val voiceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.trim()
+            if (!spoken.isNullOrBlank()) {
+                inputText = if (inputText.isBlank()) spoken else "${inputText.trim()} $spoken"
+                voiceNotice = null
+            }
+        }
+    }
 
     val listState = rememberLazyListState()
     val isBusy = chatState is AiChatUiState.Loading || chatState is AiChatUiState.Streaming
@@ -276,6 +303,21 @@ fun AiMentorScreen(
                         modifier = Modifier.testTag("ai_stance_${stance.code.lowercase()}")
                     )
                 }
+                items(AiResponseTier.entries) { tier ->
+                    FilterChip(
+                        selected = responseTier == tier,
+                        onClick = { onSelectResponseTier(tier) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Bolt,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        label = { Text(tier.label) },
+                        modifier = Modifier.testTag("ai_tier_${tier.code.lowercase()}")
+                    )
+                }
                 if (subjects.isNotEmpty()) {
                     item {
                         FilterChip(
@@ -305,7 +347,8 @@ fun AiMentorScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .testTag("ai_messages_list"),
                 contentPadding = PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -315,6 +358,7 @@ fun AiMentorScreen(
                             personality = personality,
                             studyStance = studyStance,
                             focusSubject = focusSubject,
+                            responseTier = responseTier,
                             starters = quickPrompts,
                             onSelectStarter = { prompt ->
                                 onSendMessage(prompt, personality, tasks, timezoneId)
@@ -407,6 +451,16 @@ fun AiMentorScreen(
                 }
             }
 
+            // Voice Status Banner if recognizer is missing
+            AnimatedVisibility(visible = voiceNotice != null) {
+                Text(
+                    text = voiceNotice.orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NarutoOrange,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
+                )
+            }
+
             // Frosted Glass Input Composer
             val composerStyle = ThemeDesignSystem.glassStyle(
                 accentColor = HolographicPurple,
@@ -431,11 +485,35 @@ fun AiMentorScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    IconButton(
+                        onClick = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Ask ${personality.label} a study question...")
+                            }
+                            try {
+                                voiceLauncher.launch(intent)
+                            } catch (_: ActivityNotFoundException) {
+                                voiceNotice = "Voice recognition is not available on this device."
+                            }
+                        },
+                        enabled = !isBusy,
+                        modifier = Modifier.size(48.dp).testTag("ai_voice_input_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Mic,
+                            contentDescription = "Ask with voice",
+                            tint = ChakraCyan
+                        )
+                    }
                     OutlinedTextField(
                         value = inputText,
-                        onValueChange = { inputText = it },
+                        onValueChange = {
+                            inputText = it
+                            if (voiceNotice != null) voiceNotice = null
+                        },
                         placeholder = {
                             Text(
                                 text = if (focusSubject.isNotBlank()) {
@@ -583,6 +661,7 @@ private fun SenseiWelcomeScroll(
     personality: AiPersonality,
     studyStance: StudyStance,
     focusSubject: String,
+    responseTier: AiResponseTier,
     starters: List<String>,
     onSelectStarter: (String) -> Unit
 ) {
@@ -622,9 +701,9 @@ private fun SenseiWelcomeScroll(
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = buildString {
-                append("Stance: ${studyStance.label}")
+                append("Stance: ${studyStance.label} • Mode: ${responseTier.label}")
                 if (focusSubject.isNotBlank()) append(" • Subject: $focusSubject")
-                append(". Ask any homework, concept, formula, or exam-prep question below.")
+                append(". Ask or speak any homework, concept, formula, or exam-prep question below.")
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -278,6 +278,7 @@ private fun MainAuthenticatedScaffold(
     val chatState by aiViewModel.chatState.collectAsStateWithLifecycle()
     val studyStance by aiViewModel.studyStance.collectAsStateWithLifecycle()
     val focusSubject by aiViewModel.focusSubject.collectAsStateWithLifecycle()
+    val responseTier by aiViewModel.responseTier.collectAsStateWithLifecycle()
     val scannerState by aiViewModel.scannerState.collectAsStateWithLifecycle()
     val scansHistory by aiViewModel.scansHistory.collectAsStateWithLifecycle()
     val dailySuggestion by aiViewModel.dailySuggestion.collectAsStateWithLifecycle()
@@ -552,12 +553,14 @@ private fun MainAuthenticatedScaffold(
                                 subjects = uiState.subjects,
                                 studyStance = studyStance,
                                 focusSubject = focusSubject,
+                                responseTier = responseTier,
                                 onBack = { navController.popBackStack() },
                                 onSelectPersonality = { p ->
                                     plannerViewModel.updateSettings { it.copy(aiPersonality = p.code) }
                                 },
                                 onSelectStudyStance = { stance -> aiViewModel.setStudyStance(stance) },
                                 onSelectFocusSubject = { subject -> aiViewModel.setFocusSubject(subject) },
+                                onSelectResponseTier = { tier -> aiViewModel.setResponseTier(tier) },
                                 onSelectOrCreateChat = { p -> aiViewModel.selectOrCreateChat(p) },
                                 onStartNewChat = { p -> aiViewModel.startNewChat(p) },
                                 onSelectChat = { id -> aiViewModel.selectChat(id) },

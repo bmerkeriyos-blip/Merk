@@ -103,6 +103,33 @@ enum class StudyStance(
     }
 }
 
+enum class AiResponseTier(
+    val code: String,
+    val label: String,
+    val description: String
+) {
+    FAST(
+        code = "FAST",
+        label = "Quick Flash",
+        description = "Ultra-fast answers & quick definitions"
+    ),
+    BALANCED(
+        code = "BALANCED",
+        label = "Standard Chat",
+        description = "Balanced daily study & tutoring"
+    ),
+    DEEP_REASONING(
+        code = "DEEP_REASONING",
+        label = "Deep Reasoning",
+        description = "Multi-step STEM, proofs & complex coding"
+    );
+
+    companion object {
+        fun fromCode(raw: String): AiResponseTier =
+            entries.firstOrNull { it.code.equals(raw, ignoreCase = true) } ?: BALANCED
+    }
+}
+
 data class ScannedTimetableEvent(
     val subject: String,
     val title: String,
@@ -166,13 +193,15 @@ interface ShinobiAiBackend {
 }
 
 class FirebaseShinobiAiBackend : ShinobiAiBackend {
+    private val ai by lazy { Firebase.ai }
+
     override suspend fun generateContent(
         modelName: String,
         promptText: String,
         jsonSchema: Schema?
     ): String? {
         val model = if (jsonSchema != null) {
-            Firebase.ai.generativeModel(
+            ai.generativeModel(
                 modelName = modelName,
                 generationConfig = generationConfig {
                     responseMimeType = "application/json"
@@ -180,7 +209,7 @@ class FirebaseShinobiAiBackend : ShinobiAiBackend {
                 }
             )
         } else {
-            Firebase.ai.generativeModel(modelName = modelName)
+            ai.generativeModel(modelName = modelName)
         }
         return model.generateContent(promptText).text
     }
@@ -191,7 +220,7 @@ class FirebaseShinobiAiBackend : ShinobiAiBackend {
         images: List<Bitmap>,
         jsonSchema: Schema
     ): String? {
-        val model = Firebase.ai.generativeModel(
+        val model = ai.generativeModel(
             modelName = modelName,
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
@@ -212,12 +241,12 @@ class FirebaseShinobiAiBackend : ShinobiAiBackend {
         userMessage: String
     ): Flow<String> = flow {
         val model = if (systemInstruction.isNotBlank()) {
-            Firebase.ai.generativeModel(
+            ai.generativeModel(
                 modelName = modelName,
                 systemInstruction = content { text(systemInstruction) }
             )
         } else {
-            Firebase.ai.generativeModel(modelName = modelName)
+            ai.generativeModel(modelName = modelName)
         }
         val chat = model.startChat(history = history)
         chat.sendMessageStream(userMessage).collect { chunk ->
@@ -234,6 +263,13 @@ class AiMentorService(
     companion object {
         const val PRIMARY_MODEL = "gemini-3.8-flash"
         const val LITE_MODEL = "gemini-3.5-flash-lite"
+        const val DEEP_REASONING_MODEL = "gemini-4-argon"
+
+        internal fun modelsForTier(tier: AiResponseTier): List<String> = when (tier) {
+            AiResponseTier.FAST -> listOf(LITE_MODEL, PRIMARY_MODEL)
+            AiResponseTier.BALANCED -> listOf(PRIMARY_MODEL, LITE_MODEL)
+            AiResponseTier.DEEP_REASONING -> listOf(DEEP_REASONING_MODEL, PRIMARY_MODEL, LITE_MODEL)
+        }
 
         internal fun sanitizeChatHistory(
             history: List<ChatMessageEntity>,
@@ -286,6 +322,25 @@ class AiMentorService(
                     msg.contains("too many requests") ||
                     msg.contains("503") ||
                     msg.contains("unavailable")
+                ) {
+                    return true
+                }
+                cur = cur.cause
+            }
+            return false
+        }
+
+        internal fun isBillingOrModelUnavailableError(t: Throwable): Boolean {
+            var cur: Throwable? = t
+            while (cur != null) {
+                val msg = cur.message.orEmpty().lowercase()
+                if (
+                    msg.contains("billing") ||
+                    msg.contains("blaze") ||
+                    msg.contains("model not found") ||
+                    msg.contains("not supported") ||
+                    msg.contains("permission denied") ||
+                    msg.contains("404")
                 ) {
                     return true
                 }
@@ -455,7 +510,8 @@ class AiMentorService(
         userMessage: String,
         scheduleContext: String,
         studyStance: StudyStance = StudyStance.DOJO_TUTOR,
-        focusSubject: String = ""
+        focusSubject: String = "",
+        responseTier: AiResponseTier = AiResponseTier.BALANCED
     ): Flow<String> = flow {
         val subjectLine = if (focusSubject.isNotBlank()) {
             "Active study subject focus: $focusSubject"
@@ -466,6 +522,7 @@ class AiMentorService(
             ${personality.systemTone}
             Character rank: ${personality.ninjaRank}.
             Tutoring stance (${studyStance.label}): ${studyStance.promptDirective}
+            Response depth mode: ${responseTier.label} (${responseTier.description}).
             $subjectLine
             Current student academic context:
             $scheduleContext
@@ -477,7 +534,7 @@ class AiMentorService(
 
         val chatHistory = sanitizeChatHistory(history, userMessage)
 
-        val modelsToTry = listOf(PRIMARY_MODEL, LITE_MODEL)
+        val modelsToTry = modelsForTier(responseTier)
         var emittedAny = false
         var lastError: Throwable? = null
 
@@ -506,7 +563,9 @@ class AiMentorService(
                 throw e
             } catch (e: Exception) {
                 lastError = e
-                val canFallback = index < modelsToTry.lastIndex && !emittedAny && isQuotaOrRateLimitError(e)
+                val allowFallback = isQuotaOrRateLimitError(e) ||
+                    (modelName == DEEP_REASONING_MODEL && isBillingOrModelUnavailableError(e))
+                val canFallback = index < modelsToTry.lastIndex && !emittedAny && allowFallback
                 if (canFallback) {
                     if (retryDelayMs > 0L) delay(retryDelayMs)
                     continue
