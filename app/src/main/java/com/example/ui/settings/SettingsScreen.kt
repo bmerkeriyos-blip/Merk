@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
@@ -40,11 +42,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -109,7 +113,9 @@ fun SettingsScreen(
     onExportCsv: () -> String,
     onWritePdf: (Uri) -> Boolean,
     onSignOut: () -> Unit,
-    onDeleteAccountData: () -> Unit
+    onDeleteAccountData: () -> Unit,
+    isSigningIn: Boolean = false,
+    authErrorMessage: String? = null
 ) {
     val context = LocalContext.current
     val visuals = LocalShinobiVisuals.current
@@ -195,6 +201,22 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (!authErrorMessage.isNullOrBlank() && !isSignedInWithGoogle) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        color = CrimsonAlert.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, CrimsonAlert.copy(alpha = 0.55f)),
+                        modifier = Modifier.fillMaxWidth().testTag("settings_auth_error")
+                    ) {
+                        Text(
+                            text = authErrorMessage,
+                            color = CrimsonAlert,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
@@ -216,15 +238,26 @@ fun SettingsScreen(
                     } else {
                         Button(
                             onClick = onSignInWithGoogle,
+                            enabled = !isSigningIn,
                             modifier = Modifier.weight(1f).testTag("settings_google_sign_in_button"),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = NarutoOrange,
                                 contentColor = MidnightNavy
                             )
                         ) {
-                            Icon(Icons.Filled.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Sign in Google", fontWeight = FontWeight.Bold)
+                            if (isSigningIn) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MidnightNavy
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Signing in...", fontWeight = FontWeight.Bold)
+                            } else {
+                                Icon(Icons.Filled.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Sign in Google", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

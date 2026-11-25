@@ -19,17 +19,24 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Co
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 fun FirebaseAuth.authStateFlow(): Flow<FirebaseUser?> = callbackFlow {
     val listener = FirebaseAuth.AuthStateListener { auth ->
@@ -61,24 +68,24 @@ fun attemptAutoSignIn(
     onAuthSuccess: () -> Unit,
     onUnauthenticated: () -> Unit,
     scope: CoroutineScope
-) {
+): Job? {
     if (!ensureFirebaseInitialized(context)) {
         onUnauthenticated()
-        return
+        return null
     }
     if (runCatching { Firebase.auth.currentUser }.getOrNull() != null) {
         onAuthSuccess()
-        return
+        return null
     }
     val activity = context.findActivity()
     if (credentialManager == null || activity == null) {
         onUnauthenticated()
-        return
+        return null
     }
     val clientId = resolveWebClientId(context)
     if (clientId == null) {
         onUnauthenticated()
-        return
+        return null
     }
     val googleIdOption = GetGoogleIdOption.Builder()
         .setFilterByAuthorizedAccounts(true)
@@ -88,16 +95,23 @@ fun attemptAutoSignIn(
     val request = GetCredentialRequest.Builder()
         .addCredentialOption(googleIdOption)
         .build()
-    scope.launch {
+    return scope.launch {
         try {
-            val cred = credentialManager.getCredential(activity, request).credential
-            if (cred is CustomCredential && cred.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                val token = GoogleIdTokenCredential.createFrom(cred.data).idToken
-                Firebase.auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
-                onAuthSuccess()
-            } else {
-                onUnauthenticated()
+            withTimeout(12_000L) {
+                val cred = credentialManager.getCredential(activity, request).credential
+                if (cred is CustomCredential && cred.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    val token = GoogleIdTokenCredential.createFrom(cred.data).idToken
+                    Firebase.auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
+                    onAuthSuccess()
+                } else {
+                    onUnauthenticated()
+                }
             }
+        } catch (e: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
+            onUnauthenticated()
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             onUnauthenticated()
         }
@@ -111,36 +125,46 @@ fun onGoogleSignInClicked(
     onAuthError: (String) -> Unit,
     scope: CoroutineScope,
     onAuthCancelled: () -> Unit = {}
-) {
+): Job? {
     if (!ensureFirebaseInitialized(context)) {
         onAuthError("Firebase is not initialized in this build (missing google-services.json).")
-        return
+        return null
     }
     if (credentialManager == null) {
-        onAuthError("Google Sign-In is unavailable on this device. Tap Skip for Now to use Shinobi Planner locally.")
-        return
+        onAuthError("Google Sign-In is unavailable on this device. Use Continue Offline to enter Shinobi Planner locally.")
+        return null
     }
     val activity = context.findActivity()
     if (activity == null) {
         onAuthError("Google Sign-In requires an active screen window.")
-        return
+        return null
     }
     val clientId = resolveWebClientId(context)
     if (clientId == null) {
         onAuthError("Google Sign-In configuration missing: default_web_client_id is blank.")
-        return
+        return null
     }
     val signInOption = GetSignInWithGoogleOption.Builder(serverClientId = clientId).build()
     val request = GetCredentialRequest.Builder()
         .addCredentialOption(signInOption)
         .build()
-    scope.launch {
+    return scope.launch {
+        var authStage = "opening Google account selector"
         try {
-            val cred = credentialManager.getCredential(activity, request).credential
+            val cred = withTimeout(90_000L) {
+                credentialManager.getCredential(activity, request).credential
+            }
             if (cred is CustomCredential && cred.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 val token = GoogleIdTokenCredential.createFrom(cred.data).idToken
-                Firebase.auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
-                onAuthSuccess()
+                authStage = "creating Firebase account"
+                withTimeout(30_000L) {
+                    Firebase.auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
+                }
+                if (Firebase.auth.currentUser != null) {
+                    onAuthSuccess()
+                } else {
+                    onAuthError("Firebase Authentication finished without an active user session. Please try again.")
+                }
             } else {
                 onAuthError("Unexpected credential type received.")
             }
@@ -149,13 +173,27 @@ fun onGoogleSignInClicked(
             onAuthCancelled()
         } catch (e: NoCredentialException) {
             Log.w("Auth", "No Google credentials available: ${e.message}", e)
-            onAuthError("No Google account available on this device. Add a Google account in Settings or check Google Play Services.")
+            onAuthError("No Google account available on this device. Add a Google account in device Settings or check Google Play Services.")
         } catch (e: GetCredentialException) {
-            Log.e("Auth", "Google Credential Manager error", e)
-            onAuthError(e.errorMessage?.toString() ?: e.localizedMessage ?: "Google Sign-In failed. Please try again.")
+            Log.e("Auth", "Google Credential Manager error [${e.type}]", e)
+            onAuthError(e.errorMessage?.toString()?.takeIf { it.isNotBlank() } ?: e.localizedMessage ?: "Google Sign-In failed (${e.type}).")
+        } catch (e: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
+            Log.e("Auth", "Google Sign-In timed out while $authStage", e)
+            onAuthError("Google Sign-In timed out while $authStage. Check your internet connection & Google Play Services and retry.")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: FirebaseAuthException) {
+            Log.e("Auth", "Firebase Auth failed [${e.errorCode}]", e)
+            val detail = when (e.errorCode) {
+                "ERROR_OPERATION_NOT_ALLOWED" ->
+                    "Google Sign-In is disabled in Firebase Authentication. Enable Google under Firebase Console -> Authentication -> Sign-in method."
+                else -> e.localizedMessage ?: "Firebase Authentication failed (${e.errorCode})."
+            }
+            onAuthError(detail)
         } catch (e: Exception) {
-            Log.e("Auth", "Google Sign-In failed", e)
-            onAuthError(e.localizedMessage ?: "Sign in failed. Please try again.")
+            Log.e("Auth", "Google Sign-In failed while $authStage", e)
+            onAuthError(e.localizedMessage ?: "Sign in failed while $authStage. Please try again.")
         }
     }
 }

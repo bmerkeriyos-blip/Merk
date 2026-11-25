@@ -32,6 +32,7 @@ import com.example.viewmodel.PlannerViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import kotlinx.coroutines.Job
 
 class MainActivity : FragmentActivity() {
 
@@ -74,9 +75,20 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
         mutableStateOf(authPrefs.getBoolean("skipped_sign_in", false))
     }
 
+    var isSettingsSigningIn by remember { mutableStateOf(false) }
+    var settingsAuthError by remember { mutableStateOf<String?>(null) }
+    var settingsAuthJob by remember { mutableStateOf<Job?>(null) }
+
     DisposableEffect(Unit) {
         val listener = FirebaseAuth.AuthStateListener { auth ->
-            currentUser = auth.currentUser
+            val user = auth.currentUser
+            currentUser = user
+            if (user != null) {
+                authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
+                skippedSignIn = false
+                isSettingsSigningIn = false
+                settingsAuthError = null
+            }
         }
         val firebaseAuth = runCatching { Firebase.auth }.getOrNull()
         runCatching { firebaseAuth?.addAuthStateListener(listener) }
@@ -161,29 +173,49 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
                 focusViewModel = focusViewModel,
                 aiViewModel = aiViewModel,
                 isSignedInWithGoogle = isSignedInWithGoogle,
+                isSigningIn = isSettingsSigningIn,
+                authErrorMessage = settingsAuthError,
                 onSignInWithGoogle = {
-                    onGoogleSignInClicked(
-                        context = context,
-                        credentialManager = credentialManager,
-                        onAuthSuccess = {
-                            authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
-                            skippedSignIn = false
-                            currentUser = runCatching { Firebase.auth.currentUser }.getOrNull()
-                        },
-                        onAuthError = { msg ->
-                            plannerViewModel.postStatusMessage(msg)
-                        },
-                        scope = scope
-                    )
+                    if (!isSettingsSigningIn) {
+                        settingsAuthJob?.cancel()
+                        isSettingsSigningIn = true
+                        settingsAuthError = null
+                        settingsAuthJob = onGoogleSignInClicked(
+                            context = context,
+                            credentialManager = credentialManager,
+                            onAuthSuccess = {
+                                isSettingsSigningIn = false
+                                settingsAuthError = null
+                                authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
+                                skippedSignIn = false
+                                currentUser = runCatching { Firebase.auth.currentUser }.getOrNull()
+                            },
+                            onAuthError = { msg ->
+                                isSettingsSigningIn = false
+                                settingsAuthError = msg
+                                plannerViewModel.postStatusMessage(msg)
+                            },
+                            scope = scope,
+                            onAuthCancelled = {
+                                isSettingsSigningIn = false
+                            }
+                        )
+                    }
                 },
                 onSignOut = {
                     audioEngine.pause()
+                    settingsAuthJob?.cancel()
+                    isSettingsSigningIn = false
+                    settingsAuthError = null
                     authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
                     skippedSignIn = false
                     signOutUser(credentialManager, scope)
                 },
                 onDeleteAccount = {
                     audioEngine.pause()
+                    settingsAuthJob?.cancel()
+                    isSettingsSigningIn = false
+                    settingsAuthError = null
                     authPrefs.edit().putBoolean("skipped_sign_in", false).apply()
                     skippedSignIn = false
                     signOutUser(credentialManager, scope)

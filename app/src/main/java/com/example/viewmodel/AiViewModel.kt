@@ -266,7 +266,10 @@ class AiViewModel(
                 _chatState.value = AiChatUiState.Idle
             } catch (e: TimeoutCancellationException) {
                 Log.e("AiViewModel", "AI mentor timed out", e)
-                _chatState.value = AiChatUiState.Error("AI Mentor timed out after 60s. Check connection and retry.")
+                _chatState.value = AiChatUiState.Error(
+                    e.localizedMessage?.takeIf { it.isNotBlank() }
+                        ?: "AI Mentor timed out after 60s. Check connection and retry."
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -10,6 +10,12 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.recaptcha.RecaptchaAppCheckProviderFactory
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 
 private const val TAG = "AppCheckInit"
 private const val DEBUG_TOKEN_EXTRA = "FIREBASE_APPCHECK_DEBUG_TOKEN"
@@ -68,6 +74,13 @@ fun configureAppCheck(context: Context, intent: Intent?): SelectedAppCheckMode {
                 FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
                     RecaptchaAppCheckProviderFactory.getInstance(siteKey)
                 )
+                // Warm up reCAPTCHA Enterprise client early so first AI/Auth call doesn't absorb init latency.
+                runCatching {
+                    FirebaseAppCheck.getInstance().getAppCheckToken(false)
+                        .addOnFailureListener { err ->
+                            Log.w(TAG, "Background App Check warm-up failed: ${err.message}")
+                        }
+                }
                 Log.d(TAG, "RecaptchaAppCheckProviderFactory installed for physical device debug build.")
                 SelectedAppCheckMode.RECAPTCHA_ENTERPRISE
             } else {
@@ -82,6 +95,12 @@ fun configureAppCheck(context: Context, intent: Intent?): SelectedAppCheckMode {
                 FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
                     RecaptchaAppCheckProviderFactory.getInstance(siteKey)
                 )
+                runCatching {
+                    FirebaseAppCheck.getInstance().getAppCheckToken(false)
+                        .addOnFailureListener { err ->
+                            Log.w(TAG, "Release App Check warm-up failed: ${err.message}")
+                        }
+                }
                 Log.d(TAG, "RecaptchaAppCheckProviderFactory installed.")
                 SelectedAppCheckMode.RECAPTCHA_ENTERPRISE
             } else {
@@ -92,6 +111,37 @@ fun configureAppCheck(context: Context, intent: Intent?): SelectedAppCheckMode {
     } catch (e: Exception) {
         Log.e(TAG, "Failed to initialize Firebase App Check", e)
         SelectedAppCheckMode.NONE
+    }
+}
+
+class AppCheckTimeoutException(message: String) : IllegalStateException(message)
+
+/**
+ * Verifies that Firebase App Check can mint a token within [timeoutMs] so AI calls fail fast
+ * with an actionable attestation error rather than blocking silently for 60 seconds.
+ */
+suspend fun ensureAppCheckTokenReady(timeoutMs: Long = 15_000L) {
+    if (isRobolectricRuntime()) return
+    try {
+        val result = withTimeout(timeoutMs) {
+            FirebaseAppCheck.getInstance().getAppCheckToken(false).await()
+        }
+        if (result.token.isBlank()) {
+            throw IllegalStateException("Firebase App Check returned an empty token.")
+        }
+    } catch (e: TimeoutCancellationException) {
+        currentCoroutineContext().ensureActive()
+        throw AppCheckTimeoutException(
+            "Firebase App Check attestation timed out after ${timeoutMs / 1000}s. Check network & Google Play Services and retry."
+        )
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "App Check token retrieval failed", e)
+        throw IllegalStateException(
+            "Firebase App Check failed: ${e.localizedMessage ?: e.javaClass.simpleName}",
+            e
+        )
     }
 }
 

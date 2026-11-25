@@ -106,6 +106,7 @@ import com.example.ui.theme.NarutoOrange
 import com.example.ui.theme.ShinobiGlassModifier
 import com.example.ui.theme.ThemeDesignSystem
 import com.example.ui.theme.ThemePreset
+import kotlinx.coroutines.Job
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -153,6 +154,8 @@ fun AuthScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var autoTried by remember { mutableStateOf(false) }
+    var autoSignInJob by remember { mutableStateOf<Job?>(null) }
+    var activeSignInJob by remember { mutableStateOf<Job?>(null) }
 
     val (targetPrimary, targetSecondary) = accentForPreset(selectedPreset)
     val primaryAccent by animateColorAsState(
@@ -181,7 +184,7 @@ fun AuthScreen(
     LaunchedEffect(Unit) {
         if (!autoTried) {
             autoTried = true
-            attemptAutoSignIn(
+            autoSignInJob = attemptAutoSignIn(
                 context = context,
                 credentialManager = credentialManager,
                 onAuthSuccess = onAuthSuccess,
@@ -661,10 +664,14 @@ fun AuthScreen(
 
                 Button(
                     onClick = {
+                        if (isLoading) return@Button
                         errorMessage = null
                         persistPersonalization()
+                        autoSignInJob?.cancel()
+                        autoSignInJob = null
+                        activeSignInJob?.cancel()
                         isLoading = true
-                        onGoogleSignInClicked(
+                        activeSignInJob = onGoogleSignInClicked(
                             context = context,
                             credentialManager = credentialManager,
                             onAuthSuccess = {

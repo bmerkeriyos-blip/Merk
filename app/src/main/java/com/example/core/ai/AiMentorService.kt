@@ -2,6 +2,7 @@ package com.example.core.ai
 
 import android.graphics.Bitmap
 import android.util.Log
+import com.example.core.firebase.ensureAppCheckTokenReady
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.PlannerTaskEntity
 import com.google.firebase.Firebase
@@ -11,7 +12,10 @@ import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withTimeout
@@ -200,6 +204,7 @@ class FirebaseShinobiAiBackend : ShinobiAiBackend {
         promptText: String,
         jsonSchema: Schema?
     ): String? {
+        ensureAppCheckTokenReady()
         val model = if (jsonSchema != null) {
             ai.generativeModel(
                 modelName = modelName,
@@ -220,6 +225,7 @@ class FirebaseShinobiAiBackend : ShinobiAiBackend {
         images: List<Bitmap>,
         jsonSchema: Schema
     ): String? {
+        ensureAppCheckTokenReady()
         val model = ai.generativeModel(
             modelName = modelName,
             generationConfig = generationConfig {
@@ -240,6 +246,7 @@ class FirebaseShinobiAiBackend : ShinobiAiBackend {
         history: List<Content>,
         userMessage: String
     ): Flow<String> = flow {
+        ensureAppCheckTokenReady()
         val model = if (systemInstruction.isNotBlank()) {
             ai.generativeModel(
                 modelName = modelName,
@@ -255,6 +262,8 @@ class FirebaseShinobiAiBackend : ShinobiAiBackend {
         }
     }
 }
+
+class AiTimeoutException(message: String) : IllegalStateException(message)
 
 class AiMentorService(
     private val backend: ShinobiAiBackend = FirebaseShinobiAiBackend(),
@@ -427,18 +436,34 @@ class AiMentorService(
     private suspend fun <T> executeWithQuotaResilience(
         primaryModel: String,
         fallbackModel: String?,
+        perAttemptTimeoutMs: Long? = null,
         block: suspend (modelName: String) -> T
     ): T {
         val candidates = listOfNotNull(primaryModel, fallbackModel).distinct()
         var lastError: Throwable? = null
         for ((idx, modelName) in candidates.withIndex()) {
+            val hasFallback = idx < candidates.lastIndex
             try {
-                return block(modelName)
+                return if (perAttemptTimeoutMs != null) {
+                    withTimeout(perAttemptTimeoutMs) { block(modelName) }
+                } else {
+                    block(modelName)
+                }
+            } catch (e: TimeoutCancellationException) {
+                currentCoroutineContext().ensureActive()
+                val timeoutError = AiTimeoutException(
+                    "AI request ($modelName) timed out${perAttemptTimeoutMs?.let { " after ${it / 1000}s" } ?: ""}. Check connection and retry."
+                )
+                lastError = timeoutError
+                if (hasFallback) {
+                    if (retryDelayMs > 0L) delay(retryDelayMs)
+                    continue
+                }
+                throw timeoutError
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 lastError = e
-                val hasFallback = idx < candidates.lastIndex
                 if (hasFallback && isQuotaOrRateLimitError(e)) {
                     if (retryDelayMs > 0L) delay(retryDelayMs)
                     continue
@@ -540,8 +565,10 @@ class AiMentorService(
 
         for ((index, modelName) in modelsToTry.withIndex()) {
             val accumulated = StringBuilder()
+            val hasFallbackModel = index < modelsToTry.lastIndex
+            val attemptTimeoutMs = if (hasFallbackModel) 30_000L else 45_000L
             try {
-                withTimeout(60_000L) {
+                withTimeout(attemptTimeoutMs) {
                     backend.streamChatReply(
                         modelName = modelName,
                         systemInstruction = systemAndContext,
@@ -559,13 +586,25 @@ class AiMentorService(
                     throw IllegalStateException("AI Mentor returned an empty response.")
                 }
                 return@flow
+            } catch (e: TimeoutCancellationException) {
+                currentCoroutineContext().ensureActive()
+                Log.w("AiMentorService", "Model $modelName timed out after ${attemptTimeoutMs}ms")
+                val timeoutError = AiTimeoutException(
+                    "AI Mentor ($modelName) timed out after ${attemptTimeoutMs / 1000}s waiting for Gemini. Check connection and retry."
+                )
+                lastError = timeoutError
+                if (hasFallbackModel && !emittedAny) {
+                    if (retryDelayMs > 0L) delay(retryDelayMs)
+                    continue
+                }
+                throw timeoutError
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 lastError = e
                 val allowFallback = isQuotaOrRateLimitError(e) ||
                     (modelName == DEEP_REASONING_MODEL && isBillingOrModelUnavailableError(e))
-                val canFallback = index < modelsToTry.lastIndex && !emittedAny && allowFallback
+                val canFallback = hasFallbackModel && !emittedAny && allowFallback
                 if (canFallback) {
                     if (retryDelayMs > 0L) delay(retryDelayMs)
                     continue

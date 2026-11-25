@@ -158,7 +158,9 @@ fun ShinobiAppShell(
     isSignedInWithGoogle: Boolean,
     onSignInWithGoogle: () -> Unit,
     onSignOut: () -> Unit,
-    onDeleteAccount: () -> Unit
+    onDeleteAccount: () -> Unit,
+    isSigningIn: Boolean = false,
+    authErrorMessage: String? = null
 ) {
     val uiState by plannerViewModel.uiState.collectAsStateWithLifecycle()
     val focusState by focusViewModel.uiState.collectAsStateWithLifecycle()
@@ -246,7 +248,9 @@ fun ShinobiAppShell(
                     isSignedInWithGoogle = isSignedInWithGoogle,
                     onSignInWithGoogle = onSignInWithGoogle,
                     onSignOut = onSignOut,
-                    onDeleteAccount = onDeleteAccount
+                    onDeleteAccount = onDeleteAccount,
+                    isSigningIn = isSigningIn,
+                    authErrorMessage = authErrorMessage
                 )
             }
         }
@@ -264,7 +268,9 @@ private fun MainAuthenticatedScaffold(
     isSignedInWithGoogle: Boolean,
     onSignInWithGoogle: () -> Unit,
     onSignOut: () -> Unit,
-    onDeleteAccount: () -> Unit
+    onDeleteAccount: () -> Unit,
+    isSigningIn: Boolean = false,
+    authErrorMessage: String? = null
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
@@ -538,7 +544,9 @@ private fun MainAuthenticatedScaffold(
                                 onSignOut = onSignOut,
                                 onDeleteAccountData = {
                                     plannerViewModel.deleteAccountData(onDeleteAccount)
-                                }
+                                },
+                                isSigningIn = isSigningIn,
+                                authErrorMessage = authErrorMessage
                             )
                         }
 

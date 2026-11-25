@@ -15,6 +15,7 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -80,7 +81,13 @@ class ShinobiRepository(
 
         val existingProfile = profileDao.getProfileOnce(uid)
         if (existingProfile == null) {
-            val remoteProfile = if (firebaseUser != null && remote != null) remote.fetchUserProfile(uid).getOrNull() else null
+            val remoteProfile = if (firebaseUser != null && remote != null) {
+                withTimeoutOrNull(8_000L) {
+                    remote.fetchUserProfile(uid).getOrNull()
+                }
+            } else {
+                null
+            }
             val newProfile = if (remoteProfile != null) {
                 UserProfileEntity(
                     uid = uid,
@@ -129,7 +136,9 @@ class ShinobiRepository(
             }
             profileDao.upsertProfile(newProfile)
             if ((remoteProfile == null || loginPersonalization != null) && firebaseUser != null) {
-                syncProfileToCloud(newProfile)
+                withTimeoutOrNull(8_000L) {
+                    syncProfileToCloud(newProfile)
+                }
             }
         } else if (loginPersonalization != null) {
             val updatedProfile = existingProfile.copy(

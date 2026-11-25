@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -76,6 +77,7 @@ import com.google.firebase.ai.type.Content
 import com.google.firebase.ai.type.Schema
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -823,6 +825,84 @@ class ExampleRobolectricTest {
             audioEngine.release()
             Dispatchers.resetMain()
         }
+    }
+
+    @Test
+    fun `ai mentor falls back to lite model when primary model times out`() = runTest {
+        val timeoutBackend = FakeShinobiAiBackend(
+            streamHandler = { modelName, _, _, _ ->
+                flow {
+                    if (modelName == AiMentorService.PRIMARY_MODEL) {
+                        delay(35_000L)
+                    }
+                    emit("Lite fallback ready!")
+                }
+            }
+        )
+        val service = AiMentorService(backend = timeoutBackend, retryDelayMs = 0L)
+        val chunks = service.streamMentorReply(
+            personality = AiPersonality.MENTOR,
+            history = emptyList(),
+            userMessage = "hi",
+            scheduleContext = "No tasks"
+        ).toList()
+
+        assertEquals(listOf("Lite fallback ready!"), chunks)
+        assertEquals(listOf(AiMentorService.PRIMARY_MODEL, AiMentorService.LITE_MODEL), timeoutBackend.calledModels)
+    }
+
+    @Test
+    fun `settings screen shows loading indicator and error banner for google sign in`() {
+        var signInLoading by mutableStateOf(true)
+        var signInError by mutableStateOf<String?>("Google Sign-In timed out while creating Firebase account.")
+        val guestState = PlannerUiState(
+            profile = UserProfileEntity(
+                uid = "local_shinobi",
+                displayName = "Shinobi Scholar",
+                username = "local_shinobi",
+                email = ""
+            ),
+            settings = UserSettingsEntity(userId = "local_shinobi", aiEnabled = true)
+        )
+
+        composeRule.setContent {
+            ShinobiPlannerTheme {
+                SettingsScreen(
+                    uiState = guestState,
+                    audioState = AudioPlaybackState(),
+                    isSignedInWithGoogle = false,
+                    onSignInWithGoogle = {},
+                    onUpdateProfile = {},
+                    onUpdateSettings = {},
+                    onAddWallpaper = { _, _ -> },
+                    onUpdateWallpaperTuning = { _, _, _, _, _ -> },
+                    onDeleteWallpaper = {},
+                    onResetWallpapers = {},
+                    onAddTrack = { _, _, _ -> },
+                    onDeleteTrack = {},
+                    onPlayTrackAt = {},
+                    onTogglePlayPauseMusic = {},
+                    onNextTrack = {},
+                    onPreviousTrack = {},
+                    onToggleShuffle = {},
+                    onCycleRepeat = {},
+                    onSpeakMotivation = {},
+                    onTriggerSync = {},
+                    onExportJson = { "{}" },
+                    onExportCsv = { "" },
+                    onWritePdf = { true },
+                    onSignOut = {},
+                    onDeleteAccountData = {},
+                    isSigningIn = signInLoading,
+                    authErrorMessage = signInError
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings_google_sign_in_button").assertIsNotEnabled()
+        composeRule.onNodeWithText("Signing in...").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_auth_error").assertIsDisplayed()
+        composeRule.onNodeWithText("Google Sign-In timed out while creating Firebase account.").assertIsDisplayed()
     }
 }
 
