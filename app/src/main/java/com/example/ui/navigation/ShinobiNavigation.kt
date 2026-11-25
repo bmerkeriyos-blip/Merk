@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
@@ -14,7 +15,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,7 +33,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -41,19 +43,14 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedButton
@@ -91,10 +88,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.core.ai.AiPersonality
-import com.example.ui.ai.AiMentorScreen
-import com.example.ui.ai.TimetableScannerScreen
-import com.example.ui.components.FloatingAiOrb
 import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
 import com.example.ui.components.RankUpCelebrationOverlay
@@ -106,21 +99,15 @@ import com.example.ui.progress.ProgressScreen
 import com.example.ui.schedule.ScheduleScreen
 import com.example.ui.settings.SettingsScreen
 import com.example.ui.theme.AppearanceMode
-import com.example.ui.theme.ChakraCyan
 import com.example.ui.theme.ChakraOrange
 import com.example.ui.theme.CrimsonAlert
 import com.example.ui.theme.CyberTextPrimary
-import com.example.ui.theme.GlassWhite
-import com.example.ui.theme.HoloSurfaceElevated
-import com.example.ui.theme.HolographicPurple
 import com.example.ui.theme.LocalShinobiVisuals
 import com.example.ui.theme.MidnightNavy
-import com.example.ui.theme.NarutoOrange
 import com.example.ui.theme.ShinobiGlassModifier
 import com.example.ui.theme.ShinobiPlannerTheme
 import com.example.ui.theme.ThemeDesignSystem
 import com.example.ui.theme.ThemePreset
-import com.example.viewmodel.AiViewModel
 import com.example.viewmodel.FocusTimerViewModel
 import com.example.viewmodel.PlannerUiState
 import com.example.viewmodel.PlannerViewModel
@@ -131,8 +118,6 @@ import kotlinx.serialization.Serializable
 @Serializable data object MissionsRoute
 @Serializable data object ProgressRoute
 @Serializable data object SettingsRoute
-@Serializable data object AiMentorRoute
-@Serializable data object ScannerRoute
 
 private data class TopLevelTab(
     val label: String,
@@ -149,18 +134,10 @@ private val TOP_LEVEL_TABS = listOf(
     TopLevelTab("Settings", Icons.Filled.Settings, SettingsRoute, "nav_settings")
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ShinobiAppShell(
     plannerViewModel: PlannerViewModel,
-    focusViewModel: FocusTimerViewModel,
-    aiViewModel: AiViewModel,
-    isSignedInWithGoogle: Boolean,
-    onSignInWithGoogle: () -> Unit,
-    onSignOut: () -> Unit,
-    onDeleteAccount: () -> Unit,
-    isSigningIn: Boolean = false,
-    authErrorMessage: String? = null
+    focusViewModel: FocusTimerViewModel
 ) {
     val uiState by plannerViewModel.uiState.collectAsStateWithLifecycle()
     val focusState by focusViewModel.uiState.collectAsStateWithLifecycle()
@@ -169,7 +146,7 @@ fun ShinobiAppShell(
     val profile = uiState.profile
 
     val preset = remember(settings.themePreset) {
-        runCatching { ThemePreset.valueOf(settings.themePreset) }.getOrDefault(ThemePreset.NARUTO)
+        ThemePreset.fromStorage(settings.themePreset)
     }
     val appearance = remember(settings.appearanceMode) {
         runCatching { AppearanceMode.valueOf(settings.appearanceMode) }.getOrDefault(AppearanceMode.DARK)
@@ -177,7 +154,6 @@ fun ShinobiAppShell(
 
     var unlockedThisSession by remember { mutableStateOf(false) }
 
-    // Surface Snackbars for user status updates
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(uiState.statusMessage) {
         val msg = uiState.statusMessage
@@ -187,7 +163,6 @@ fun ShinobiAppShell(
         }
     }
 
-    // Celebrate focus timer completions via Planner HUD
     LaunchedEffect(focusState.lastCompletedMessage) {
         val msg = focusState.lastCompletedMessage
         if (!msg.isNullOrBlank()) {
@@ -220,9 +195,8 @@ fun ShinobiAppShell(
             profile != null && !profile.onboardingCompleted -> {
                 OnboardingScreen(
                     profile = profile,
-                    initialThemePreset = settings.themePreset,
-                    initialAiPersonality = settings.aiPersonality,
-                    onComplete = { name, univ, dept, year, tz, use24h, showEthTime, pName, aiPers ->
+                    initialThemePreset = preset.name,
+                    onComplete = { name, univ, dept, year, tz, use24h, showEthTime, pName, initialWallRes ->
                         plannerViewModel.completeOnboarding(
                             displayName = name,
                             university = univ,
@@ -232,45 +206,31 @@ fun ShinobiAppShell(
                             use24HourClock = use24h,
                             showEthiopianTime = showEthTime,
                             themePreset = pName,
-                            aiPersonality = aiPers
+                            initialWallpaperResName = initialWallRes
                         )
                     }
                 )
             }
 
             else -> {
-                MainAuthenticatedScaffold(
+                MainDojoScaffold(
                     uiState = uiState,
                     plannerViewModel = plannerViewModel,
                     focusViewModel = focusViewModel,
-                    aiViewModel = aiViewModel,
-                    snackbarHostState = snackbarHostState,
-                    isSignedInWithGoogle = isSignedInWithGoogle,
-                    onSignInWithGoogle = onSignInWithGoogle,
-                    onSignOut = onSignOut,
-                    onDeleteAccount = onDeleteAccount,
-                    isSigningIn = isSigningIn,
-                    authErrorMessage = authErrorMessage
+                    snackbarHostState = snackbarHostState
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MainAuthenticatedScaffold(
+private fun MainDojoScaffold(
     uiState: PlannerUiState,
     plannerViewModel: PlannerViewModel,
     focusViewModel: FocusTimerViewModel,
-    aiViewModel: AiViewModel,
-    snackbarHostState: SnackbarHostState,
-    isSignedInWithGoogle: Boolean,
-    onSignInWithGoogle: () -> Unit,
-    onSignOut: () -> Unit,
-    onDeleteAccount: () -> Unit,
-    isSigningIn: Boolean = false,
-    authErrorMessage: String? = null
+    snackbarHostState: SnackbarHostState
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
@@ -280,40 +240,18 @@ private fun MainAuthenticatedScaffold(
 
     val audioState by plannerViewModel.audioState.collectAsStateWithLifecycle()
     val focusState by focusViewModel.uiState.collectAsStateWithLifecycle()
-    val chats by aiViewModel.chats.collectAsStateWithLifecycle()
-    val activeChatId by aiViewModel.activeChatId.collectAsStateWithLifecycle()
-    val messages by aiViewModel.messages.collectAsStateWithLifecycle()
-    val chatState by aiViewModel.chatState.collectAsStateWithLifecycle()
-    val studyStance by aiViewModel.studyStance.collectAsStateWithLifecycle()
-    val focusSubject by aiViewModel.focusSubject.collectAsStateWithLifecycle()
-    val responseTier by aiViewModel.responseTier.collectAsStateWithLifecycle()
-    val scannerState by aiViewModel.scannerState.collectAsStateWithLifecycle()
-    val scansHistory by aiViewModel.scansHistory.collectAsStateWithLifecycle()
-    val dailySuggestion by aiViewModel.dailySuggestion.collectAsStateWithLifecycle()
-    val pendingDelete by aiViewModel.pendingDeleteConfirmation.collectAsStateWithLifecycle()
 
     var openScheduleCreateFlag by remember { mutableStateOf(false) }
     var missionsInitialTab by remember { mutableIntStateOf(0) }
-    var showQuickAiSheet by remember { mutableStateOf(false) }
 
     val screenTarget = when {
         currentDest?.hasRoute<HomeRoute>() == true -> "HOME"
         currentDest?.hasRoute<ScheduleRoute>() == true -> "SCHEDULE"
         currentDest?.hasRoute<MissionsRoute>() == true -> "MISSIONS"
-        currentDest?.hasRoute<AiMentorRoute>() == true -> "AI"
-        currentDest?.hasRoute<ProgressRoute>() == true -> "PROFILE"
-        else -> "GLOBAL"
+        currentDest?.hasRoute<ProgressRoute>() == true -> "PROGRESS"
+        currentDest?.hasRoute<SettingsRoute>() == true -> "SETTINGS"
+        else -> "HOME"
     }
-
-    val isTopLevel = currentDest?.hasRoute<AiMentorRoute>() != true &&
-        currentDest?.hasRoute<ScannerRoute>() != true
-
-    val imeVisible = WindowInsets.isImeVisible
-    val showFloatingOrb = uiState.settings.aiEnabled &&
-        uiState.settings.floatingAiEnabled &&
-        isTopLevel &&
-        !(uiState.settings.floatingAiHideWhileTyping && imeVisible) &&
-        !(uiState.settings.floatingAiDisableInFocus && currentDest?.hasRoute<MissionsRoute>() == true && focusState.isRunning)
 
     fun navigateTopLevel(route: Any) {
         navController.navigate(route) {
@@ -335,7 +273,7 @@ private fun MainAuthenticatedScaffold(
         )
 
         Row(modifier = Modifier.fillMaxSize()) {
-            if (useRail && isTopLevel) {
+            if (useRail) {
                 val railStyle = ThemeDesignSystem.glassStyle(
                     accentColor = visuals.primaryAccent,
                     tier = GlassTier.FLOATING_BAR,
@@ -385,7 +323,7 @@ private fun MainAuthenticatedScaffold(
                 contentWindowInsets = WindowInsets.safeDrawing,
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 bottomBar = {
-                    if (!useRail && isTopLevel) {
+                    if (!useRail) {
                         FloatingGlassBottomNavBar(
                             tabs = TOP_LEVEL_TABS,
                             isSelected = { tab ->
@@ -412,33 +350,27 @@ private fun MainAuthenticatedScaffold(
                         navController = navController,
                         startDestination = HomeRoute,
                         enterTransition = {
-                            if (visuals.animationsEnabled) {
-                                fadeIn(tween(220)) +
-                                    scaleIn(initialScale = 0.97f, animationSpec = tween(220)) +
-                                    slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(220))
-                            } else EnterTransition.None
+                            if (!visuals.animationsEnabled) EnterTransition.None
+                            else fadeIn(tween(220, easing = FastOutSlowInEasing)) +
+                                scaleIn(initialScale = 0.96f, animationSpec = tween(220))
                         },
                         exitTransition = {
-                            if (visuals.animationsEnabled) fadeOut(tween(180)) else ExitTransition.None
-                        },
-                        popEnterTransition = {
-                            if (visuals.animationsEnabled) fadeIn(tween(200)) else EnterTransition.None
-                        },
-                        popExitTransition = {
-                            if (visuals.animationsEnabled) fadeOut(tween(180)) else ExitTransition.None
+                            if (!visuals.animationsEnabled) ExitTransition.None
+                            else fadeOut(tween(180))
                         }
                     ) {
-                        composable<HomeRoute> {
+                        composable<HomeRoute>(
+                            enterTransition = {
+                                if (!visuals.animationsEnabled) EnterTransition.None
+                                else fadeIn(tween(240)) + slideIntoContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.End,
+                                    tween(240, easing = FastOutSlowInEasing)
+                                )
+                            }
+                        ) {
                             DashboardScreen(
                                 uiState = uiState,
                                 focusState = focusState,
-                                dailySuggestion = dailySuggestion,
-                                onRefreshSuggestion = {
-                                    aiViewModel.refreshDailySuggestion(uiState.tasks, uiState.settings.timezoneId)
-                                },
-                                onForceRefreshSuggestion = {
-                                    aiViewModel.refreshDailySuggestion(uiState.tasks, uiState.settings.timezoneId, force = true)
-                                },
                                 onToggleTask = { plannerViewModel.toggleTaskCompleted(it) },
                                 onQuickFocusToggle = {
                                     focusViewModel.toggleStartPause(uiState.settings.musicDuringFocus)
@@ -454,8 +386,9 @@ private fun MainAuthenticatedScaffold(
                                     missionsInitialTab = 0
                                     navigateTopLevel(MissionsRoute)
                                 },
-                                onOpenAiMentor = { navController.navigate(AiMentorRoute) },
-                                onOpenScanner = { navController.navigate(ScannerRoute) },
+                                onOpenProgress = {
+                                    navigateTopLevel(ProgressRoute)
+                                },
                                 onOpenSettings = { navigateTopLevel(SettingsRoute) },
                                 onSaveWidgetsOrder = { csv ->
                                     plannerViewModel.updateSettings { it.copy(dashboardWidgetsCsv = csv) }
@@ -463,7 +396,22 @@ private fun MainAuthenticatedScaffold(
                             )
                         }
 
-                        composable<ScheduleRoute> {
+                        composable<ScheduleRoute>(
+                            // Home <-> Schedule: Chakra-inspired surge
+                            enterTransition = {
+                                if (!visuals.animationsEnabled) EnterTransition.None
+                                else fadeIn(tween(240)) +
+                                    scaleIn(initialScale = 0.95f, animationSpec = tween(240, easing = FastOutSlowInEasing)) +
+                                    slideIntoContainer(
+                                        AnimatedContentTransitionScope.SlideDirection.Start,
+                                        tween(240, easing = FastOutSlowInEasing)
+                                    )
+                            },
+                            exitTransition = {
+                                if (!visuals.animationsEnabled) ExitTransition.None
+                                else fadeOut(tween(180)) + scaleOut(targetScale = 0.98f, animationSpec = tween(180))
+                            }
+                        ) {
                             ScheduleScreen(
                                 uiState = uiState,
                                 openCreateInitially = openScheduleCreateFlag,
@@ -477,12 +425,27 @@ private fun MainAuthenticatedScaffold(
                                 onDuplicateTask = { plannerViewModel.duplicateTask(it) },
                                 onMoveTaskUp = { t, list -> plannerViewModel.moveTaskUp(t, list) },
                                 onSaveSubject = { plannerViewModel.saveSubject(it) },
-                                onDeleteSubject = { plannerViewModel.deleteSubject(it) },
-                                onOpenScanner = { navController.navigate(ScannerRoute) }
+                                onDeleteSubject = { plannerViewModel.deleteSubject(it) }
                             )
                         }
 
-                        composable<MissionsRoute> {
+                        composable<MissionsRoute>(
+                            // Schedule -> Missions: Smooth anime vertical reveal
+                            enterTransition = {
+                                if (!visuals.animationsEnabled) EnterTransition.None
+                                else fadeIn(tween(240)) + slideInVertically(
+                                    animationSpec = tween(250, easing = FastOutSlowInEasing),
+                                    initialOffsetY = { it / 12 }
+                                )
+                            },
+                            exitTransition = {
+                                if (!visuals.animationsEnabled) ExitTransition.None
+                                else fadeOut(tween(180)) + slideOutVertically(
+                                    animationSpec = tween(180),
+                                    targetOffsetY = { -it / 16 }
+                                )
+                            }
+                        ) {
                             MissionsScreen(
                                 uiState = uiState,
                                 focusState = focusState,
@@ -506,21 +469,53 @@ private fun MainAuthenticatedScaffold(
                             )
                         }
 
-                        composable<ProgressRoute> {
+                        composable<ProgressRoute>(
+                            // Missions -> Progress: Subtle cinematic zoom/particle dissolve
+                            enterTransition = {
+                                if (!visuals.animationsEnabled) EnterTransition.None
+                                else fadeIn(tween(250)) + scaleIn(
+                                    initialScale = 0.92f,
+                                    animationSpec = tween(250, easing = FastOutSlowInEasing)
+                                )
+                            },
+                            exitTransition = {
+                                if (!visuals.animationsEnabled) ExitTransition.None
+                                else fadeOut(tween(180)) + scaleOut(targetScale = 1.03f, animationSpec = tween(180))
+                            }
+                        ) {
                             ProgressScreen(
                                 uiState = uiState,
                                 onSaveTask = { task, subs -> plannerViewModel.saveTask(task, subs) }
                             )
                         }
 
-                        composable<SettingsRoute> {
+                        composable<SettingsRoute>(
+                            // Any -> Settings: Naruto-inspired leaf/chakra cross-slide
+                            enterTransition = {
+                                if (!visuals.animationsEnabled) EnterTransition.None
+                                else fadeIn(tween(240)) +
+                                    slideIntoContainer(
+                                        AnimatedContentTransitionScope.SlideDirection.Up,
+                                        tween(240, easing = FastOutSlowInEasing)
+                                    )
+                            },
+                            exitTransition = {
+                                if (!visuals.animationsEnabled) ExitTransition.None
+                                else fadeOut(tween(180)) +
+                                    slideOutOfContainer(
+                                        AnimatedContentTransitionScope.SlideDirection.Down,
+                                        tween(180)
+                                    )
+                            }
+                        ) {
                             SettingsScreen(
                                 uiState = uiState,
                                 audioState = audioState,
-                                isSignedInWithGoogle = isSignedInWithGoogle,
-                                onSignInWithGoogle = onSignInWithGoogle,
                                 onUpdateProfile = { plannerViewModel.updateProfile(it) },
                                 onUpdateSettings = { plannerViewModel.updateSettings(it) },
+                                onSelectBuiltinWallpaper = { resName, scr ->
+                                    plannerViewModel.selectBuiltinWallpaper(resName, scr)
+                                },
                                 onAddWallpaper = { uri, scr -> plannerViewModel.addImportedWallpaper(uri, scr) },
                                 onUpdateWallpaperTuning = { w, br, bl, ov, pr ->
                                     plannerViewModel.updateWallpaperTuning(w, br, bl, ov, pr)
@@ -537,84 +532,10 @@ private fun MainAuthenticatedScaffold(
                                 onCycleRepeat = { plannerViewModel.cycleRepeatMode() },
                                 onSpeakMotivation = { plannerViewModel.speakMotivation(it) },
                                 onPlaySfx = { plannerViewModel.playSfx(it) },
-                                onTriggerSync = { plannerViewModel.triggerSyncNow(context) },
                                 onExportJson = { plannerViewModel.exportJson() },
                                 onExportCsv = { plannerViewModel.exportCsv() },
                                 onWritePdf = { uri -> plannerViewModel.writePdfReport(context, uri) },
-                                onSignOut = onSignOut,
-                                onDeleteAccountData = {
-                                    plannerViewModel.deleteAccountData(onDeleteAccount)
-                                },
-                                isSigningIn = isSigningIn,
-                                authErrorMessage = authErrorMessage
-                            )
-                        }
-
-                        composable<AiMentorRoute> {
-                            AiMentorScreen(
-                                chats = chats,
-                                activeChatId = activeChatId,
-                                messages = messages,
-                                chatState = chatState,
-                                currentPersonalityCode = uiState.settings.aiPersonality,
-                                tasks = uiState.tasks,
-                                timezoneId = uiState.settings.timezoneId,
-                                pendingDelete = pendingDelete,
-                                subjects = uiState.subjects,
-                                studyStance = studyStance,
-                                focusSubject = focusSubject,
-                                responseTier = responseTier,
-                                onBack = { navController.popBackStack() },
-                                onSelectPersonality = { p ->
-                                    plannerViewModel.updateSettings { it.copy(aiPersonality = p.code) }
-                                },
-                                onSelectStudyStance = { stance -> aiViewModel.setStudyStance(stance) },
-                                onSelectFocusSubject = { subject -> aiViewModel.setFocusSubject(subject) },
-                                onSelectResponseTier = { tier -> aiViewModel.setResponseTier(tier) },
-                                onSelectOrCreateChat = { p -> aiViewModel.selectOrCreateChat(p) },
-                                onStartNewChat = { p -> aiViewModel.startNewChat(p) },
-                                onSelectChat = { id -> aiViewModel.selectChat(id) },
-                                onDeleteChat = { id -> aiViewModel.deleteChat(id) },
-                                onSendMessage = { text, p, tasks, tz ->
-                                    aiViewModel.sendMessage(text, p, tasks, tz)
-                                },
-                                onRetryLast = {
-                                    aiViewModel.retryLastMessage(
-                                        personality = AiPersonality.fromCode(uiState.settings.aiPersonality),
-                                        tasks = uiState.tasks,
-                                        timezoneId = uiState.settings.timezoneId
-                                    )
-                                },
-                                onDismissError = { aiViewModel.dismissChatError() },
-                                onSpeakReply = { replyText -> plannerViewModel.speakMotivation(replyText) },
-                                onConfirmPendingDelete = { aiViewModel.confirmPendingDelete() },
-                                onDismissPendingDelete = { aiViewModel.dismissPendingDelete() },
-                                onOpenScanner = { navController.navigate(ScannerRoute) }
-                            )
-                        }
-
-                        composable<ScannerRoute> {
-                            TimetableScannerScreen(
-                                scannerState = scannerState,
-                                scansHistory = scansHistory,
-                                autoSaveScans = uiState.settings.autoSaveScans,
-                                timezoneId = uiState.settings.timezoneId,
-                                use24HourClock = uiState.settings.use24HourClock,
-                                onBack = { navController.popBackStack() },
-                                onScanUri = { uri, src, acc, auto ->
-                                    aiViewModel.scanFromImageUri(
-                                        context = context,
-                                        uri = uri,
-                                        sourceType = src,
-                                        accurateMode = acc,
-                                        autoSave = auto,
-                                        timezoneId = uiState.settings.timezoneId
-                                    )
-                                },
-                                onUpdateEvent = { i, ev -> aiViewModel.updateScannedEvent(i, ev) },
-                                onRemoveEvent = { i -> aiViewModel.removeScannedEvent(i) },
-                                onConfirmSave = { src, acc -> aiViewModel.confirmAndSaveScannedEvents(src, acc) },
-                                onResetScanner = { aiViewModel.resetScanner() }
+                                onResetLocalData = { plannerViewModel.resetLocalData() }
                             )
                         }
                     }
@@ -625,79 +546,7 @@ private fun MainAuthenticatedScaffold(
                         onDismiss = { plannerViewModel.clearCelebration() },
                         modifier = Modifier.align(Alignment.TopCenter)
                     )
-
-                    // Draggable Holographic AI Chakra Orb (Tap = AI Mentor, Hold = Quick Launcher)
-                    if (showFloatingOrb) {
-                        FloatingAiOrb(
-                            onClick = { navController.navigate(AiMentorRoute) },
-                            onLongClick = { showQuickAiSheet = true },
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(end = 18.dp, bottom = 14.dp)
-                        )
-                    }
                 }
-            }
-        }
-    }
-
-    if (showQuickAiSheet) {
-        var quickPrompt by remember { mutableStateOf("") }
-        ModalBottomSheet(
-            onDismissRequest = { showQuickAiSheet = false },
-            containerColor = if (visuals.isDark) HoloSurfaceElevated else MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = HolographicPurple)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "SHINOBI QUICK AI LAUNCHER",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                OutlinedTextField(
-                    value = quickPrompt,
-                    onValueChange = { quickPrompt = it },
-                    label = { Text("Quick mission command (e.g. Study Algorithms at 5 PM)") },
-                    modifier = Modifier.fillMaxWidth().testTag("quick_ai_sheet_input")
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(
-                        onClick = {
-                            if (quickPrompt.isNotBlank()) {
-                                val p = AiPersonality.fromCode(uiState.settings.aiPersonality)
-                                aiViewModel.sendMessage(quickPrompt, p, uiState.tasks, uiState.settings.timezoneId)
-                            }
-                            showQuickAiSheet = false
-                            navController.navigate(AiMentorRoute)
-                        },
-                        modifier = Modifier.weight(1f).height(48.dp).testTag("quick_ai_go_mentor")
-                    ) {
-                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (quickPrompt.isBlank()) "Open Mentor Chat" else "Send & Open Chat")
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            showQuickAiSheet = false
-                            navController.navigate(ScannerRoute)
-                        },
-                        modifier = Modifier.weight(1f).height(48.dp).testTag("quick_ai_go_scanner")
-                    ) {
-                        Icon(Icons.Filled.DocumentScanner, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Scan Timetable")
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -893,19 +742,22 @@ private fun AppLockGateScreen(
                             entered = it
                             errorText = null
                             if (it == expectedPin) onUnlocked()
-                            else if (it.length == 4) errorText = "Incorrect PIN"
+                            else if (it.length == 4) {
+                                errorText = "Incorrect 4-digit PIN"
+                                entered = ""
+                            }
                         }
                     },
                     label = { Text("Enter 4-Digit PIN") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("app_lock_pin_input")
                 )
-                errorText?.let {
-                    Text(it, color = CrimsonAlert, style = MaterialTheme.typography.bodySmall)
+                if (errorText != null) {
+                    Text(errorText.orEmpty(), color = CrimsonAlert, style = MaterialTheme.typography.bodySmall)
                 }
                 if (biometricsEnabled) {
-                    OutlinedButton(onClick = { launchBiometrics() }) {
-                        Text("Use Biometrics")
+                    OutlinedButton(onClick = { launchBiometrics() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Unlock with Fingerprint / Biometrics")
                     }
                 }
             }

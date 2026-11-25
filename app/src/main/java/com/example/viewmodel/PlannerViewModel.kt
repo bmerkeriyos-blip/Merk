@@ -4,22 +4,34 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.core.common.*
+import com.example.core.common.ExportHelper
+import com.example.core.common.NarutoVisualCatalog
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.media.AudioPlaybackState
 import com.example.core.media.ShinobiAudioEngine
 import com.example.core.media.ShinobiSfx
-import com.example.core.workers.CloudSyncWorker
-import com.example.data.local.*
+import com.example.data.local.AchievementEntity
+import com.example.data.local.MusicTrackEntity
+import com.example.data.local.PlannerTaskEntity
+import com.example.data.local.StudyNoteEntity
+import com.example.data.local.StudySessionEntity
+import com.example.data.local.SubjectEntity
+import com.example.data.local.SubtaskEntity
+import com.example.data.local.TaskCompletionHistoryEntity
+import com.example.data.local.UserProfileEntity
+import com.example.data.local.UserSettingsEntity
+import com.example.data.local.WallpaperItemEntity
 import com.example.data.repository.ShinobiRepository
 import com.example.data.repository.TaskConflict
 import com.example.data.repository.TimeSlot
-import com.example.ui.auth.ShinobiLoginPersonalization
-import com.google.firebase.auth.FirebaseUser
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.UUID
 
 data class PlannerUiState(
     val profile: UserProfileEntity? = null,
@@ -34,8 +46,7 @@ data class PlannerUiState(
     val tracks: List<MusicTrackEntity> = emptyList(),
     val notes: List<StudyNoteEntity> = emptyList(),
     val celebrationMessage: String? = null,
-    val statusMessage: String? = null,
-    val isSyncing: Boolean = false
+    val statusMessage: String? = null
 )
 
 class PlannerViewModel(
@@ -46,7 +57,6 @@ class PlannerViewModel(
 
     private val _celebration = MutableStateFlow<String?>(null)
     private val _statusMessage = MutableStateFlow<String?>(null)
-    private val _isSyncing = MutableStateFlow(false)
 
     val audioState: StateFlow<AudioPlaybackState> = audioEngine.playbackState
 
@@ -75,16 +85,8 @@ class PlannerViewModel(
         secondaryDataFlow,
         repository.observeNotes(currentUserId),
         _celebration,
-        _statusMessage,
-        _isSyncing
-    ) { array ->
-        val primary = array[0] as PrimaryData
-        val secondary = array[1] as SecondaryData
-        @Suppress("UNCHECKED_CAST")
-        val notes = array[2] as List<StudyNoteEntity>
-        val celebration = array[3] as String?
-        val status = array[4] as String?
-        val syncing = array[5] as Boolean
+        _statusMessage
+    ) { primary, secondary, notes, celebration, status ->
         PlannerUiState(
             profile = primary.profile,
             settings = primary.settings,
@@ -98,8 +100,7 @@ class PlannerViewModel(
             tracks = secondary.tracks,
             notes = notes,
             celebrationMessage = celebration,
-            statusMessage = status,
-            isSyncing = syncing
+            statusMessage = status
         )
     }.stateIn(
         scope = viewModelScope,
@@ -107,12 +108,9 @@ class PlannerViewModel(
         initialValue = PlannerUiState()
     )
 
-    fun initializeSession(
-        firebaseUser: FirebaseUser?,
-        loginPersonalization: ShinobiLoginPersonalization? = null
-    ) {
+    fun initializeSession() {
         viewModelScope.launch {
-            repository.ensureUserInitialized(firebaseUser, loginPersonalization)
+            repository.ensureUserInitialized(currentUserId)
             val existingTracks = repository.observeTracks(currentUserId).first()
             val legacyBuiltIn = existingTracks.filter { it.builtInSynth }
             legacyBuiltIn.forEach { repository.deleteTrack(it.id) }
@@ -223,7 +221,7 @@ class PlannerViewModel(
         viewModelScope.launch {
             audioEngine.playSfx(ShinobiSfx.SCROLL_OPEN)
             repository.saveNote(note.copy(userId = currentUserId))
-            _statusMessage.value = "Note saved"
+            _statusMessage.value = "Scroll saved"
         }
     }
 
@@ -247,7 +245,7 @@ class PlannerViewModel(
         use24HourClock: Boolean,
         showEthiopianTime: Boolean,
         themePreset: String,
-        aiPersonality: String
+        initialWallpaperResName: String? = null
     ) {
         viewModelScope.launch {
             val current = uiState.value.profile ?: return@launch
@@ -266,9 +264,14 @@ class PlannerViewModel(
                 use24HourClock = use24HourClock,
                 showEthiopianTime = showEthiopianTime,
                 themePreset = themePreset,
-                aiPersonality = aiPersonality
+                aiEnabled = false,
+                floatingAiEnabled = false,
+                offlineModeOnly = true
             )
             repository.saveSettings(s)
+            if (!initialWallpaperResName.isNullOrBlank()) {
+                repository.setBuiltinWallpaper(currentUserId, "GLOBAL", initialWallpaperResName)
+            }
             applyAudioVolumes(s)
             audioEngine.playSfx(ShinobiSfx.JUTSU)
         }
@@ -279,6 +282,16 @@ class PlannerViewModel(
             val next = transform(uiState.value.settings.copy(userId = currentUserId))
             repository.saveSettings(next)
             applyAudioVolumes(next)
+        }
+    }
+
+    fun selectBuiltinWallpaper(resName: String, screenTarget: String = "GLOBAL") {
+        viewModelScope.launch {
+            repository.setBuiltinWallpaper(currentUserId, screenTarget, resName)
+            val artworkTitle = NarutoVisualCatalog.artworks.firstOrNull {
+                it.resName.equals(resName, ignoreCase = true)
+            }?.title ?: "Naruto Wallpaper"
+            _statusMessage.value = "$artworkTitle applied to $screenTarget"
         }
     }
 
@@ -315,6 +328,7 @@ class PlannerViewModel(
                     parallaxEnabled = parallaxEnabled
                 )
             )
+            _statusMessage.value = "Visual tuning updated"
         }
     }
 
@@ -324,9 +338,9 @@ class PlannerViewModel(
 
     fun resetWallpapers() {
         viewModelScope.launch {
-            uiState.value.wallpapers.filter { !it.builtInResName.equals("bg_ninja_village", true) }
-                .forEach { repository.deleteWallpaper(it.id) }
-            _statusMessage.value = "Restored default Ninja Village wallpaper"
+            uiState.value.wallpapers.forEach { repository.deleteWallpaper(it.id) }
+            repository.setBuiltinWallpaper(currentUserId, "GLOBAL", "img_naruto_uzumaki")
+            _statusMessage.value = "Restored default Naruto Uzumaki wallpapers"
         }
     }
 
@@ -364,23 +378,6 @@ class PlannerViewModel(
     fun cycleRepeatMode() = audioEngine.cycleRepeatMode()
     fun speakMotivation(text: String) = audioEngine.speakMotivational(text)
 
-    fun triggerSyncNow(context: Context) {
-        viewModelScope.launch {
-            if (currentUserId == ShinobiRepository.LOCAL_GUEST_UID) {
-                _statusMessage.value = "Local mode active — sign in with Google to enable cloud sync"
-                return@launch
-            }
-            _isSyncing.value = true
-            val res = repository.syncPendingToCloud(currentUserId)
-            CloudSyncWorker.triggerImmediateSync(context)
-            _isSyncing.value = false
-            _statusMessage.value = res.fold(
-                onSuccess = { "Cloud sync complete ($it missions synced)" },
-                onFailure = { "Offline cache preserved (${it.localizedMessage ?: "sync queued"})" }
-            )
-        }
-    }
-
     fun exportJson(): String = ExportHelper.buildJsonExport(
         uiState.value.profile,
         uiState.value.tasks,
@@ -408,9 +405,12 @@ class PlannerViewModel(
         }
     }
 
-    fun deleteAccountData(onDone: () -> Unit) {
+    fun resetLocalData(onDone: () -> Unit = {}) {
         viewModelScope.launch {
             repository.deleteAllUserData(currentUserId)
+            repository.ensureUserInitialized(currentUserId)
+            audioEngine.pause()
+            _statusMessage.value = "Local Shinobi Dojo reset"
             onDone()
         }
     }
@@ -431,16 +431,6 @@ class PlannerViewModel(
 
     fun postStatusMessage(message: String) {
         _statusMessage.value = message
-    }
-
-    fun reportFocusCompletion(xp: Int, rankUpTitle: String?) {
-        if (rankUpTitle != null) {
-            audioEngine.playSfx(ShinobiSfx.RANK_UP)
-            _celebration.value = "RANK UP! $rankUpTitle (+$xp XP)"
-        } else {
-            audioEngine.playSfx(ShinobiSfx.XP_GAIN)
-            _celebration.value = "Focus Session Complete! +$xp XP"
-        }
     }
 
     fun todayIso(): String =

@@ -4,10 +4,24 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,15 +29,30 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,17 +63,30 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
-import com.example.core.ai.AiPersonality
+import com.example.core.common.NarutoVisualCatalog
 import com.example.core.common.ShinobiTimeUtil
 import com.example.data.local.UserProfileEntity
+import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
-import com.example.ui.theme.*
+import com.example.ui.components.NarutoHeroArtBanner
+import com.example.ui.components.XpProgressBar
+import com.example.ui.theme.ChakraCyan
+import com.example.ui.theme.ChakraOrange
+import com.example.ui.theme.CyberBorderGlow
+import com.example.ui.theme.CyberTextPrimary
+import com.example.ui.theme.CyberTextSecondary
+import com.example.ui.theme.GoldRankS
+import com.example.ui.theme.JadeEmerald
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.NarutoOrange
+import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.ThemeDesignSystem
+import com.example.ui.theme.ThemePreset
 
 @Composable
 fun OnboardingScreen(
     profile: UserProfileEntity?,
-    initialThemePreset: String = ThemePreset.NARUTO.name,
-    initialAiPersonality: String = AiPersonality.MENTOR.code,
+    initialThemePreset: String = ThemePreset.NARUTO_CHAKRA.name,
     onComplete: (
         displayName: String,
         university: String,
@@ -54,7 +96,7 @@ fun OnboardingScreen(
         use24HourClock: Boolean,
         showEthiopianTime: Boolean,
         themePreset: String,
-        aiPersonality: String
+        initialWallpaperResName: String
     ) -> Unit
 ) {
     var step by remember { mutableIntStateOf(0) }
@@ -65,8 +107,9 @@ fun OnboardingScreen(
     var timezoneId by remember { mutableStateOf(ShinobiTimeUtil.DEFAULT_TIMEZONE_ID) }
     var use24HourClock by remember { mutableStateOf(false) }
     var showEthiopianTime by remember { mutableStateOf(true) }
-    var selectedPreset by remember(initialThemePreset) { mutableStateOf(initialThemePreset) }
-    var selectedPersonality by remember(initialAiPersonality) { mutableStateOf(initialAiPersonality) }
+    var selectedPreset by remember(initialThemePreset) {
+        mutableStateOf(ThemePreset.fromStorage(initialThemePreset).name)
+    }
     var notifPermissionResult by remember { mutableStateOf<String?>(null) }
 
     val notifLauncher = rememberLauncherForActivityResult(
@@ -75,7 +118,8 @@ fun OnboardingScreen(
         notifPermissionResult = if (granted) "Mission alerts enabled" else "Alerts can be enabled later in Settings"
     }
 
-    val totalSteps = 4
+    val totalSteps = 3
+    val resolvedPreset = ThemePreset.fromStorage(selectedPreset)
 
     Box(
         modifier = Modifier
@@ -97,9 +141,10 @@ fun OnboardingScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "SHINOBI SETUP  ${step + 1}/$totalSteps",
+                    text = "SHINOBI DOJO SETUP  ${step + 1}/$totalSteps",
                     style = MaterialTheme.typography.labelLarge,
-                    color = ChakraOrange
+                    color = ChakraOrange,
+                    fontWeight = FontWeight.Bold
                 )
                 TextButton(
                     onClick = {
@@ -111,8 +156,8 @@ fun OnboardingScreen(
                             timezoneId,
                             use24HourClock,
                             showEthiopianTime,
-                            selectedPreset,
-                            selectedPersonality
+                            resolvedPreset.name,
+                            resolvedPreset.defaultResName
                         )
                     },
                     modifier = Modifier.testTag("onboarding_skip_button")
@@ -121,7 +166,7 @@ fun OnboardingScreen(
                 }
             }
 
-            com.example.ui.components.XpProgressBar(
+            XpProgressBar(
                 progress = (step + 1) / totalSteps.toFloat(),
                 startColor = NarutoOrange,
                 endColor = ChakraCyan,
@@ -143,7 +188,8 @@ fun OnboardingScreen(
                                 contentDescription = "Shinobi Avatar",
                                 modifier = Modifier
                                     .size(72.dp)
-                                    .clip(CircleShape),
+                                    .clip(CircleShape)
+                                    .border(2.dp, ChakraOrange, CircleShape),
                                 contentScale = ContentScale.Crop
                             )
                             Spacer(modifier = Modifier.width(16.dp))
@@ -155,24 +201,25 @@ fun OnboardingScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Configure your Hidden Leaf study scroll & training dojo.",
+                                    text = "100% offline Hidden Leaf study scroll & mission dojo.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = CyberTextSecondary
                                 )
                             }
                         }
-                        Image(
-                            painter = painterResource(id = R.drawable.img_scroll_banner),
-                            contentDescription = "Hidden Leaf Study Scroll",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(104.dp)
-                                .clip(RoundedCornerShape(16.dp)),
-                            contentScale = ContentScale.Crop
+
+                        NarutoHeroArtBanner(
+                            drawableRes = R.drawable.img_naruto_uzumaki,
+                            badgeLabel = "OFFLINE NINJA SCROLL",
+                            title = "Forge Your Academic Ninja Way",
+                            subtitle = "Schedules, Focus Dojo, missions, and themes stored securely on your device.",
+                            accentColor = ChakraOrange,
+                            height = 128.dp
                         )
+
                         HoloCard(
                             accentColor = ChakraOrange,
-                            glassTier = com.example.ui.components.GlassTier.HERO,
+                            glassTier = GlassTier.HERO,
                             glowActive = true
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -193,7 +240,7 @@ fun OnboardingScreen(
                                 value = university,
                                 onValueChange = { university = it },
                                 label = { Text("University / Academy") },
-                                placeholder = { Text("e.g. Metro Tech University") },
+                                placeholder = { Text("e.g. Hidden Leaf Academy") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth().testTag("onboarding_university_input")
                             )
@@ -218,9 +265,9 @@ fun OnboardingScreen(
                     }
 
                     1 -> {
-                        HoloCard {
+                        HoloCard(accentColor = ChakraCyan) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Public, contentDescription = null, tint = ChakraOrange)
+                                Icon(Icons.Filled.Public, contentDescription = null, tint = ChakraCyan)
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text("Time & Timezone", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
                             }
@@ -290,21 +337,21 @@ fun OnboardingScreen(
                     }
 
                     2 -> {
-                        HoloCard(accentColor = ChakraOrange) {
+                        HoloCard(accentColor = resolvedPreset.swatchPrimary) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Palette, contentDescription = null, tint = ChakraOrange)
+                                Icon(Icons.Filled.Palette, contentDescription = null, tint = resolvedPreset.swatchPrimary)
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text("Dojo Theme Preset", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
+                                Text("Choose Naruto Visual Theme", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                             ThemePreset.entries.forEach { preset ->
-                                val chosen = selectedPreset == preset.name
+                                val chosen = resolvedPreset == preset
                                 val presetStyle = ThemeDesignSystem.glassStyle(
-                                    accentColor = ChakraOrange,
+                                    accentColor = preset.swatchPrimary,
                                     tier = GlassTier.SUBTLE,
                                     glowActive = chosen,
                                     cornerRadius = ThemeDesignSystem.CompactCornerRadius,
-                                    tintColor = if (chosen) ChakraOrange else null
+                                    tintColor = if (chosen) preset.swatchPrimary else null
                                 )
                                 Surface(
                                     onClick = { selectedPreset = preset.name },
@@ -315,34 +362,44 @@ fun OnboardingScreen(
                                     shape = presetStyle.shape,
                                     color = Color.Transparent,
                                     contentColor = CyberTextPrimary,
-                                    border = null,
                                     tonalElevation = presetStyle.tonalElevation
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(14.dp),
+                                        modifier = Modifier.padding(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        Image(
+                                            painter = painterResource(
+                                                id = NarutoVisualCatalog.resolveDrawable(preset.defaultResName)
+                                            ),
+                                            contentDescription = preset.label,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(46.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
                                         Column(Modifier.weight(1f)) {
                                             Text(preset.label, color = CyberTextPrimary, fontWeight = FontWeight.SemiBold)
                                             Text(preset.subtitle, style = MaterialTheme.typography.labelSmall, color = CyberTextSecondary)
                                         }
                                         if (chosen) {
-                                            Icon(Icons.Filled.Check, contentDescription = "Selected", tint = ChakraOrange)
+                                            Icon(Icons.Filled.Check, contentDescription = "Selected", tint = preset.swatchPrimary)
                                         }
                                     }
                                 }
                             }
                         }
 
-                        HoloCard {
+                        HoloCard(accentColor = GoldRankS) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Filled.Notifications, contentDescription = null, tint = GoldRankS)
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text("Mission Notifications", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
+                                Text("Offline Mission Reminders", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = notifPermissionResult ?: "Enable alerts for upcoming classes, exam countdowns, and daily briefings.",
+                                text = notifPermissionResult ?: "Enable local device alerts for upcoming classes, exam countdowns, and daily briefings.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = CyberTextSecondary
                             )
@@ -360,62 +417,16 @@ fun OnboardingScreen(
                                 Text("Grant Notification Permission")
                             }
                         }
-                    }
 
-                    3 -> {
-                        HoloCard {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = ArcaneViolet)
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("AI Ninja Mentor Personality", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            AiPersonality.entries.forEach { p ->
-                                val chosen = selectedPersonality == p.code
-                                val persStyle = ThemeDesignSystem.glassStyle(
-                                    accentColor = ArcaneViolet,
-                                    tier = GlassTier.SUBTLE,
-                                    glowActive = chosen,
-                                    cornerRadius = ThemeDesignSystem.CompactCornerRadius,
-                                    tintColor = if (chosen) ArcaneViolet else null
-                                )
-                                Surface(
-                                    onClick = { selectedPersonality = p.code },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                        .ShinobiGlassModifier(style = persStyle, showSpecularEdge = false),
-                                    shape = persStyle.shape,
-                                    color = Color.Transparent,
-                                    contentColor = CyberTextPrimary,
-                                    border = null,
-                                    tonalElevation = persStyle.tonalElevation
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text(p.label, color = CyberTextPrimary, fontWeight = FontWeight.SemiBold)
-                                            Text(p.systemTone, style = MaterialTheme.typography.labelSmall, color = CyberTextSecondary, maxLines = 2)
-                                        }
-                                        if (chosen) {
-                                            Icon(Icons.Filled.Check, contentDescription = "Selected", tint = ArcaneViolet)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        HoloCard {
+                        HoloCard(accentColor = JadeEmerald, glassTier = GlassTier.SUBTLE) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Filled.MusicNote, contentDescription = null, tint = JadeEmerald)
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text("Custom Music & Audio Dojo Ready", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
+                                Text("Offline Focus Audio & Wallpapers Ready", style = MaterialTheme.typography.titleSmall, color = CyberTextPrimary)
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Includes shinobi sound effects, voice briefings, and SAF import for your own MP3/M4A songs and custom wallpapers.",
+                                text = "Includes 12 bundled Naruto artworks, shinobi sound effects, motivational voice cues, and local SAF MP3/M4A player.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = CyberTextSecondary
                             )
@@ -451,8 +462,8 @@ fun OnboardingScreen(
                                 timezoneId,
                                 use24HourClock,
                                 showEthiopianTime,
-                                selectedPreset,
-                                selectedPersonality
+                                resolvedPreset.name,
+                                resolvedPreset.defaultResName
                             )
                         }
                     },

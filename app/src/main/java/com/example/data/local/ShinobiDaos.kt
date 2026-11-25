@@ -16,6 +16,9 @@ interface UserProfileDao {
     @Query("SELECT * FROM user_profiles WHERE uid = :uid LIMIT 1")
     suspend fun getProfileOnce(uid: String): UserProfileEntity?
 
+    @Query("SELECT * FROM user_profiles ORDER BY updatedAtEpochMs DESC LIMIT 1")
+    suspend fun getMostRecentProfileOnce(): UserProfileEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertProfile(profile: UserProfileEntity)
 

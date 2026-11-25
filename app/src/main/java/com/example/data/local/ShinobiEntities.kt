@@ -244,7 +244,7 @@ data class TimetableScanEntity(
 @Entity(tableName = "user_settings")
 data class UserSettingsEntity(
     @PrimaryKey val userId: String,
-    val themePreset: String = "NARUTO",
+    val themePreset: String = "NARUTO_CHAKRA",
     val appearanceMode: String = "DARK",
     val accentColorKey: String = "ORANGE",
     val glassmorphism: Boolean = true,
@@ -256,10 +256,10 @@ data class UserSettingsEntity(
     val reduceMotion: Boolean = false,
     val batterySaverMode: Boolean = false,
     val hapticsEnabled: Boolean = true,
-    val floatingAiEnabled: Boolean = true,
+    val floatingAiEnabled: Boolean = false,
     val floatingAiDisableInFocus: Boolean = true,
     val floatingAiHideWhileTyping: Boolean = true,
-    val aiEnabled: Boolean = true,
+    val aiEnabled: Boolean = false,
     val aiPersonality: String = "MENTOR",
     val autoSaveScans: Boolean = false,
     val timezoneId: String = "Africa/Addis_Ababa",
@@ -280,10 +280,10 @@ data class UserSettingsEntity(
     val wallpaperSlideshowEnabled: Boolean = false,
     val wallpaperSlideshowIntervalSec: Int = 30,
     val wallpaperRandomOrder: Boolean = false,
-    val offlineModeOnly: Boolean = false,
+    val offlineModeOnly: Boolean = true,
     val appLockEnabled: Boolean = false,
     val appLockPin: String = "",
     val biometricsEnabled: Boolean = false,
-    val dashboardWidgetsCsv: String = "PROGRESS,NEXT_CLASS,TIMER,MISSIONS,AI_BRIEFING,WEEKLY,QUICK_ACTIONS",
+    val dashboardWidgetsCsv: String = "PROGRESS,NEXT_CLASS,TIMER,MISSIONS,WEEKLY,QUICK_ACTIONS",
     val updatedAtEpochMs: Long = System.currentTimeMillis()
 )

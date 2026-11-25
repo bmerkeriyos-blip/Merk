@@ -1,6 +1,5 @@
 package com.example.ui.dashboard
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,16 +23,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
@@ -51,7 +47,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,25 +68,26 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.R
+import com.example.core.common.NarutoVisualCatalog
 import com.example.core.common.RankProgression
 import com.example.core.common.ShinobiTimeUtil
 import com.example.data.local.PlannerTaskEntity
 import com.example.ui.components.ChakraProgressRing
 import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
+import com.example.ui.components.NarutoHeroArtBanner
 import com.example.ui.components.RankBadgeChip
 import com.example.ui.components.ShurikenCheckbox
 import com.example.ui.components.XpProgressBar
 import com.example.ui.theme.ChakraCyan
 import com.example.ui.theme.ChakraGreen
-import com.example.ui.theme.ChakraOrange
-import com.example.ui.theme.GlassWhite
 import com.example.ui.theme.GoldRankS
 import com.example.ui.theme.HolographicPurple
 import com.example.ui.theme.LocalShinobiVisuals
 import com.example.ui.theme.MidnightNavy
 import com.example.ui.theme.NarutoOrange
 import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.SurfaceStyle
 import com.example.ui.theme.ThemeDesignSystem
 import com.example.viewmodel.FocusTimerUiState
 import com.example.viewmodel.PlannerUiState
@@ -102,30 +98,25 @@ import java.util.Locale
 
 private val ALL_WIDGET_KEYS = listOf(
     "PROGRESS" to "Daily Progress & Rank",
-    "NEXT_CLASS" to "Next Class Card",
-    "TIMER" to "Quick Focus Timer",
-    "AI_BRIEFING" to "AI Daily Briefing",
+    "NEXT_CLASS" to "Next Mission Card",
+    "TIMER" to "Quick Focus Dojo",
     "MISSIONS" to "Today's Missions",
-    "WEEKLY" to "Weekly Progress Chart",
-    "QUICK_ACTIONS" to "Quick Actions"
+    "WEEKLY" to "7-Day Completion Chart",
+    "QUICK_ACTIONS" to "Quick Navigation"
 )
 
 @Composable
 fun DashboardScreen(
     uiState: PlannerUiState,
     focusState: FocusTimerUiState,
-    dailySuggestion: String?,
-    onRefreshSuggestion: () -> Unit,
     onToggleTask: (PlannerTaskEntity) -> Unit,
     onQuickFocusToggle: () -> Unit,
     onOpenScheduleAdd: () -> Unit,
     onOpenFocusDojo: () -> Unit,
-    onOpenAiMentor: () -> Unit,
-    onOpenScanner: () -> Unit,
+    onOpenProgress: () -> Unit = {},
     onSaveWidgetsOrder: (String) -> Unit,
     onOpenScheduleView: () -> Unit = onOpenScheduleAdd,
-    onOpenSettings: () -> Unit = {},
-    onForceRefreshSuggestion: () -> Unit = onRefreshSuggestion
+    onOpenSettings: () -> Unit = {}
 ) {
     val visuals = LocalShinobiVisuals.current
     val settings = uiState.settings
@@ -154,14 +145,19 @@ fun DashboardScreen(
     }
 
     val enabledWidgets = remember(settings.dashboardWidgetsCsv) {
-        settings.dashboardWidgetsCsv.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        settings.dashboardWidgetsCsv
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && it != "AI_BRIEFING" }
+            .toSet()
     }
     var showCustomizeDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(uiState.tasks.size) {
-        if (settings.aiEnabled && dailySuggestion == null) {
-            onRefreshSuggestion()
-        }
+    val heroArtworkResName = remember(uiState.wallpapers, visuals.preset) {
+        val homeSpecific = uiState.wallpapers.firstOrNull {
+            it.screenTarget.equals("HOME", ignoreCase = true) && it.builtInResName.isNotBlank()
+        }?.builtInResName
+        homeSpecific ?: visuals.preset.defaultResName
     }
 
     LazyColumn(
@@ -171,7 +167,7 @@ fun DashboardScreen(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Futuristic Shinobi Command Center Header
+        // Personalized Shinobi Command Header
         item {
             val greeting = when (nowZoned.hour) {
                 in 5..11 -> "GOOD MORNING"
@@ -183,7 +179,7 @@ fun DashboardScreen(
                 " • ${ShinobiTimeUtil.formatEthiopianClock(nowZoned.toLocalTime())}"
             } else ""
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -194,7 +190,7 @@ fun DashboardScreen(
                             .clip(CircleShape)
                             .background(
                                 Brush.sweepGradient(
-                                    listOf(NarutoOrange, ChakraCyan, HolographicPurple, NarutoOrange)
+                                    listOf(visuals.primaryAccent, visuals.secondaryAccent, HolographicPurple, visuals.primaryAccent)
                                 )
                             )
                             .padding(2.dp),
@@ -205,18 +201,14 @@ fun DashboardScreen(
                             AsyncImage(
                                 model = photoUrl,
                                 contentDescription = "Shinobi Avatar",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
                                 contentScale = ContentScale.Crop
                             )
                         } else {
                             Image(
                                 painter = painterResource(id = R.drawable.img_shinobi_avatar),
                                 contentDescription = "Shinobi Avatar",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
                                 contentScale = ContentScale.Crop
                             )
                         }
@@ -234,7 +226,7 @@ fun DashboardScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Your training continues today.",
+                            text = "${visuals.preset.label} • ${profile?.ninjaTitle ?: "Academy Student"}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -242,16 +234,6 @@ fun DashboardScreen(
                         )
                     }
 
-                    IconButton(
-                        onClick = onForceRefreshSuggestion,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.NotificationsNone,
-                            contentDescription = "Refresh Briefing Alerts",
-                            tint = ChakraCyan
-                        )
-                    }
                     IconButton(
                         onClick = { showCustomizeDialog = true },
                         modifier = Modifier.size(48.dp).testTag("customize_dashboard_button")
@@ -274,10 +256,11 @@ fun DashboardScreen(
                     }
                 }
 
-                // Compact Glass Date + Dual Clock Pill
+                // Dual Clock Frosted Pill
                 val clockPillStyle = ThemeDesignSystem.glassStyle(
-                    accentColor = ChakraCyan,
+                    accentColor = visuals.secondaryAccent,
                     tier = GlassTier.SUBTLE,
+                    surfaceStyle = SurfaceStyle.GLASSMORPHISM,
                     cornerRadius = ThemeDesignSystem.CompactCornerRadius
                 )
                 Surface(
@@ -290,7 +273,7 @@ fun DashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -298,14 +281,14 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Filled.CalendarToday,
                                 contentDescription = null,
-                                tint = ChakraCyan,
+                                tint = visuals.secondaryAccent,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = ShinobiTimeUtil.formatDateHeader(todayDate),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = ChakraCyan,
+                                color = visuals.secondaryAccent,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -313,12 +296,12 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Filled.Schedule,
                                 contentDescription = null,
-                                tint = NarutoOrange,
+                                tint = visuals.primaryAccent,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Time: ${ShinobiTimeUtil.formatTime(nowMinutes, settings.use24HourClock)}$ethTimeSuffix",
+                                text = "${ShinobiTimeUtil.formatTime(nowMinutes, settings.use24HourClock)}$ethTimeSuffix",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -328,12 +311,37 @@ fun DashboardScreen(
             }
         }
 
-        // Holographic Ninja Rank Panel
+        // Cinematic Naruto Character Hero Banner
+        item {
+            val openCount = todayTasks.count { !it.completed }
+            val heroTitle = when {
+                openCount == 0 && totalToday > 0 -> "All Daily Missions Cleared"
+                openCount > 0 -> "$openCount Active Missions Today"
+                else -> "Hidden Leaf Study Command"
+            }
+            val heroSubtitle = if (nextClass != null) {
+                "Next: ${nextClass.title} at ${ShinobiTimeUtil.formatTime(nextClass.startTimeMinutes, settings.use24HourClock)}"
+            } else {
+                "Tap to schedule classes, assignments, or enter Focus Dojo."
+            }
+            NarutoHeroArtBanner(
+                drawableRes = NarutoVisualCatalog.resolveDrawable(heroArtworkResName),
+                badgeLabel = visuals.preset.label.uppercase(),
+                title = heroTitle,
+                subtitle = heroSubtitle,
+                accentColor = visuals.primaryAccent,
+                height = 132.dp,
+                onClick = onOpenScheduleView
+            )
+        }
+
+        // Anime Cyber Ninja Rank Panel
         if ("PROGRESS" in enabledWidgets) {
             item {
                 HoloCard(
-                    accentColor = NarutoOrange,
+                    accentColor = visuals.primaryAccent,
                     glassTier = GlassTier.HERO,
+                    surfaceStyle = SurfaceStyle.ANIME_CYBER,
                     glowActive = true
                 ) {
                     Row(
@@ -347,7 +355,7 @@ fun DashboardScreen(
                             centerSubtitle = "$completedToday/$totalToday Today",
                             size = 104.dp,
                             strokeWidth = 9.dp,
-                            accentColor = NarutoOrange
+                            accentColor = visuals.primaryAccent
                         )
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Row(
@@ -358,7 +366,7 @@ fun DashboardScreen(
                                 Text(
                                     text = rankInfo.title.uppercase(),
                                     style = MaterialTheme.typography.labelLarge,
-                                    color = NarutoOrange,
+                                    color = visuals.primaryAccent,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -389,7 +397,7 @@ fun DashboardScreen(
 
                             XpProgressBar(
                                 progress = rankInfo.progressFraction,
-                                startColor = NarutoOrange,
+                                startColor = visuals.primaryAccent,
                                 endColor = GoldRankS,
                                 height = 8.dp
                             )
@@ -407,7 +415,7 @@ fun DashboardScreen(
                                 StatPill(
                                     icon = Icons.Filled.LocalFireDepartment,
                                     text = "${profile?.currentStreak ?: 0}d Streak",
-                                    tint = NarutoOrange
+                                    tint = visuals.primaryAccent
                                 )
                                 StatPill(
                                     icon = Icons.Filled.Bolt,
@@ -421,7 +429,7 @@ fun DashboardScreen(
             }
         }
 
-        // Floating Glass Quick Actions
+        // Quick Offline Navigation Chips
         if ("QUICK_ACTIONS" in enabledWidgets) {
             item {
                 LazyRow(
@@ -432,7 +440,7 @@ fun DashboardScreen(
                         ActionChipPill(
                             icon = Icons.Filled.Add,
                             label = "New Mission",
-                            tint = NarutoOrange,
+                            tint = visuals.primaryAccent,
                             tag = "quick_new_mission",
                             onClick = onOpenScheduleAdd
                         )
@@ -441,18 +449,9 @@ fun DashboardScreen(
                         ActionChipPill(
                             icon = Icons.Filled.Timer,
                             label = "Focus Dojo",
-                            tint = ChakraCyan,
+                            tint = visuals.secondaryAccent,
                             tag = "quick_focus_dojo",
                             onClick = onOpenFocusDojo
-                        )
-                    }
-                    item {
-                        ActionChipPill(
-                            icon = Icons.Filled.DocumentScanner,
-                            label = "AI Scan",
-                            tint = ChakraGreen,
-                            tag = "quick_scan_timetable",
-                            onClick = onOpenScanner
                         )
                     }
                     item {
@@ -466,24 +465,34 @@ fun DashboardScreen(
                     }
                     item {
                         ActionChipPill(
-                            icon = Icons.Filled.AutoAwesome,
-                            label = "AI Sensei",
-                            tint = HolographicPurple,
-                            tag = "quick_ask_ai",
-                            onClick = onOpenAiMentor
+                            icon = Icons.Filled.Insights,
+                            label = "Progress",
+                            tint = ChakraGreen,
+                            tag = "quick_progress",
+                            onClick = onOpenProgress
+                        )
+                    }
+                    item {
+                        ActionChipPill(
+                            icon = Icons.Filled.Settings,
+                            label = "Themes",
+                            tint = GoldRankS,
+                            tag = "quick_settings_themes",
+                            onClick = onOpenSettings
                         )
                     }
                 }
             }
         }
 
-        // Next Scheduled Mission with Holographic Timeline Indicator
+        // Next Scheduled Mission
         if ("NEXT_CLASS" in enabledWidgets) {
             item {
                 HoloCard(
-                    accentColor = ChakraCyan,
+                    accentColor = visuals.secondaryAccent,
                     glassTier = GlassTier.STANDARD,
-                    onClick = onOpenScheduleAdd
+                    surfaceStyle = SurfaceStyle.GLASSMORPHISM,
+                    onClick = onOpenScheduleView
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -493,14 +502,14 @@ fun DashboardScreen(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(ChakraCyan.copy(alpha = 0.16f))
-                                .border(1.dp, ChakraCyan.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
+                                .background(visuals.secondaryAccent.copy(alpha = 0.16f))
+                                .border(1.dp, visuals.secondaryAccent.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.School,
                                 contentDescription = "Next Scheduled Mission",
-                                tint = ChakraCyan,
+                                tint = visuals.secondaryAccent,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -509,15 +518,14 @@ fun DashboardScreen(
                             Text(
                                 text = "NEXT SCHEDULED MISSION",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = ChakraCyan,
+                                color = visuals.secondaryAccent,
                                 fontWeight = FontWeight.Bold
                             )
                             if (nextClass != null) {
-                                val countdownText = buildCountdownText(todayIso, nowMinutes, nextClass)
                                 Text(
-                                    text = countdownText,
+                                    text = buildCountdownText(todayIso, nowMinutes, nextClass),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = NarutoOrange,
+                                    color = visuals.primaryAccent,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -527,19 +535,18 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                     if (nextClass == null) {
                         Text(
-                            text = "No upcoming open missions. Tap to schedule a class or scan your university timetable.",
+                            text = "No upcoming open missions. Tap to add a class, assignment, or study mission.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Holographic vertical timeline bar
                             Box(
                                 modifier = Modifier
                                     .width(3.dp)
                                     .height(42.dp)
                                     .clip(CircleShape)
-                                    .background(Brush.verticalGradient(listOf(ChakraCyan, NarutoOrange)))
+                                    .background(Brush.verticalGradient(listOf(visuals.secondaryAccent, visuals.primaryAccent)))
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
@@ -566,7 +573,7 @@ fun DashboardScreen(
             }
         }
 
-        // Focus Dojo Widget with Cyan Chakra Ring
+        // Quick Focus Dojo Card
         if ("TIMER" in enabledWidgets) {
             item {
                 val mins = focusState.remainingSeconds / 60
@@ -576,8 +583,9 @@ fun DashboardScreen(
                 } else 0f
 
                 HoloCard(
-                    accentColor = ChakraCyan,
+                    accentColor = visuals.secondaryAccent,
                     glassTier = GlassTier.HERO,
+                    surfaceStyle = SurfaceStyle.GLASSMORPHISM,
                     glowActive = focusState.isRunning,
                     onClick = onOpenFocusDojo
                 ) {
@@ -592,14 +600,14 @@ fun DashboardScreen(
                             centerSubtitle = if (focusState.isRunning) "ACTIVE" else "READY",
                             size = 88.dp,
                             strokeWidth = 7.dp,
-                            accentColor = ChakraCyan,
+                            accentColor = visuals.secondaryAccent,
                             isAnimating = focusState.isRunning
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "FOCUS DOJO",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = ChakraCyan,
+                                color = visuals.secondaryAccent,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -620,7 +628,7 @@ fun DashboardScreen(
                             onClick = onQuickFocusToggle,
                             modifier = Modifier.size(54.dp).testTag("dashboard_quick_timer_toggle"),
                             colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = if (focusState.isRunning) NarutoOrange else ChakraCyan,
+                                containerColor = if (focusState.isRunning) visuals.primaryAccent else visuals.secondaryAccent,
                                 contentColor = MidnightNavy
                             )
                         ) {
@@ -630,46 +638,6 @@ fun DashboardScreen(
                             )
                         }
                     }
-                }
-            }
-        }
-
-        // AI Daily Briefing with Holographic Purple Glow
-        if ("AI_BRIEFING" in enabledWidgets && settings.aiEnabled) {
-            item {
-                HoloCard(
-                    accentColor = HolographicPurple,
-                    glassTier = GlassTier.STANDARD,
-                    onClick = onOpenAiMentor
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.AutoAwesome,
-                            contentDescription = "Shinobi Mentor Briefing",
-                            tint = HolographicPurple
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "AI DAILY BRIEFING",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = HolographicPurple,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = onForceRefreshSuggestion, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh Briefing", tint = HolographicPurple)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = dailySuggestion
-                            ?: "Prioritize your highest-rank mission first and lock in one uninterrupted 25-minute Focus Dojo cycle.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
                 }
             }
         }
@@ -713,7 +681,7 @@ fun DashboardScreen(
                 items(todayTasks.take(6), key = { it.id }) { task ->
                     HoloCard(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                        accentColor = if (task.completed) ChakraGreen else NarutoOrange,
+                        accentColor = if (task.completed) ChakraGreen else visuals.primaryAccent,
                         glassTier = GlassTier.STANDARD
                     ) {
                         Row(
@@ -723,7 +691,7 @@ fun DashboardScreen(
                             ShurikenCheckbox(
                                 checked = task.completed,
                                 onToggle = { onToggleTask(task) },
-                                accentColor = if (task.completed) ChakraGreen else NarutoOrange,
+                                accentColor = if (task.completed) ChakraGreen else visuals.primaryAccent,
                                 modifier = Modifier.testTag("dashboard_task_check_${task.id}")
                             )
                             Column(modifier = Modifier.weight(1f)) {
@@ -750,13 +718,14 @@ fun DashboardScreen(
             }
         }
 
-        // Weekly Neon Study Progress Chart
+        // Weekly 7-Day Study Progress Chart
         if ("WEEKLY" in enabledWidgets) {
             item {
                 WeeklyStudyBarCard(
                     todayDate = todayDate,
                     tasks = uiState.tasks,
-                    accentColor = ChakraCyan
+                    accentColor = visuals.secondaryAccent,
+                    primaryColor = visuals.primaryAccent
                 )
             }
         }
@@ -905,7 +874,8 @@ private fun ActionChipPill(
 private fun WeeklyStudyBarCard(
     todayDate: LocalDate,
     tasks: List<PlannerTaskEntity>,
-    accentColor: Color
+    accentColor: Color,
+    primaryColor: Color
 ) {
     val startOfWeek = remember(todayDate) { todayDate.minusDays(6) }
     val counts = remember(tasks, startOfWeek) {
@@ -934,7 +904,7 @@ private fun WeeklyStudyBarCard(
             Text(
                 text = "${counts.sumOf { it.second }} cleared",
                 style = MaterialTheme.typography.labelSmall,
-                color = NarutoOrange,
+                color = primaryColor,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -960,7 +930,7 @@ private fun WeeklyStudyBarCard(
                 drawRoundRect(
                     brush = Brush.verticalGradient(
                         colors = if (count > 0) {
-                            listOf(NarutoOrange, accentColor)
+                            listOf(primaryColor, accentColor)
                         } else {
                             listOf(accentColor.copy(alpha = 0.25f), accentColor.copy(alpha = 0.12f))
                         }
@@ -971,11 +941,14 @@ private fun WeeklyStudyBarCard(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-            counts.forEach { (dayLabel, cnt) ->
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            counts.forEach { (label, _) ->
                 Text(
-                    text = "$dayLabel($cnt)",
+                    text = label,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -1,6 +1,6 @@
 {
   "name": "Shinobi Planner",
-  "description": "A Naruto-inspired anime shinobi university study planner, mission scroll, focus dojo timer, and AI sensei.",
+  "description": "An offline Naruto-inspired anime shinobi university study planner, mission scroll, focus dojo timer, and theme studio.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

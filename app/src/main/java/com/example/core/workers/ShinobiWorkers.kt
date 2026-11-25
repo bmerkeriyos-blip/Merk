@@ -1,66 +1,17 @@
 package com.example.core.workers
 
 import android.content.Context
-import androidx.work.*
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
 import com.example.core.common.ShinobiTimeUtil
 import com.example.core.notifications.ShinobiNotificationManager
 import com.example.data.local.ShinobiDatabase
-import com.example.data.remote.FirestoreSyncRepository
 import com.example.data.repository.ShinobiRepository
-import com.google.firebase.Firebase
-import com.google.firebase.auth.auth
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
-
-class CloudSyncWorker(
-    appContext: Context,
-    params: WorkerParameters
-) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result {
-        val uid = runCatching { Firebase.auth.currentUser?.uid }.getOrNull() ?: return Result.success()
-        val db = ShinobiDatabase.getInstance(applicationContext)
-        val settings = db.userSettingsDao().getSettingsOnce(uid)
-        if (settings?.offlineModeOnly == true) return Result.success()
-
-        val repo = ShinobiRepository(
-            applicationContext,
-            db,
-            FirestoreSyncRepository(applicationContext)
-        )
-        return repo.syncPendingToCloud(uid).fold(
-            onSuccess = { Result.success() },
-            onFailure = { Result.retry() }
-        )
-    }
-
-    companion object {
-        private const val WORK_NAME = "shinobi_cloud_sync"
-
-        fun schedulePeriodicSync(context: Context) {
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
-            val req = PeriodicWorkRequestBuilder<CloudSyncWorker>(1, TimeUnit.HOURS)
-                .setConstraints(constraints)
-                .build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
-                req
-            )
-        }
-
-        fun triggerImmediateSync(context: Context) {
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
-            val req = OneTimeWorkRequestBuilder<CloudSyncWorker>()
-                .setConstraints(constraints)
-                .build()
-            WorkManager.getInstance(context).enqueue(req)
-        }
-    }
-}
 
 class DailyBriefingWorker(
     appContext: Context,
@@ -68,8 +19,11 @@ class DailyBriefingWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         val db = ShinobiDatabase.getInstance(applicationContext)
-        val uid = runCatching { Firebase.auth.currentUser?.uid }.getOrNull() ?: ShinobiRepository.LOCAL_GUEST_UID
-        if (db.userProfileDao().getProfileOnce(uid) == null) return Result.success()
+        val cachedUid = ShinobiRepository.getCachedLocalUid(applicationContext)
+        val uid = cachedUid?.takeIf { db.userProfileDao().getProfileOnce(it) != null }
+            ?: db.userProfileDao().getMostRecentProfileOnce()?.uid
+            ?: ShinobiRepository.LOCAL_GUEST_UID
+        val profile = db.userProfileDao().getProfileOnce(uid) ?: return Result.success()
         val settings = db.userSettingsDao().getSettingsOnce(uid)
         val tz = settings?.timezoneId ?: ShinobiTimeUtil.DEFAULT_TIMEZONE_ID
         val now = ShinobiTimeUtil.nowZoned(tz)
@@ -84,8 +38,7 @@ class DailyBriefingWorker(
         val todayIso = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tasks = db.plannerTaskDao().getTasksOnce(uid)
         val todayOpen = tasks.count { it.dateIso == todayIso && !it.completed }
-        val profile = db.userProfileDao().getProfileOnce(uid)
-        val streak = profile?.currentStreak ?: 0
+        val streak = profile.currentStreak
 
         val body = when {
             todayOpen > 0 && streak > 0 ->

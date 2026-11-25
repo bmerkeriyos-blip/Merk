@@ -1,6 +1,6 @@
 package com.example.ui.schedule
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,8 +29,9 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.core.common.ShinobiTimeUtil
 import com.example.core.common.TaskCategory
 import com.example.data.local.PlannerTaskEntity
@@ -76,6 +78,7 @@ import com.example.data.repository.TaskConflict
 import com.example.data.repository.TimeSlot
 import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
+import com.example.ui.components.NarutoHeroArtBanner
 import com.example.ui.components.RankBadgeChip
 import com.example.ui.components.ShurikenCheckbox
 import com.example.ui.theme.ChakraCyan
@@ -87,6 +90,7 @@ import com.example.ui.theme.LocalShinobiVisuals
 import com.example.ui.theme.MidnightNavy
 import com.example.ui.theme.NarutoOrange
 import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.SurfaceStyle
 import com.example.ui.theme.ThemeDesignSystem
 import com.example.viewmodel.PlannerUiState
 import java.time.DayOfWeek
@@ -117,8 +121,7 @@ fun ScheduleScreen(
     onDuplicateTask: (PlannerTaskEntity) -> Unit,
     onMoveTaskUp: (PlannerTaskEntity, List<PlannerTaskEntity>) -> Unit,
     onSaveSubject: (SubjectEntity) -> Unit,
-    onDeleteSubject: (String) -> Unit,
-    onOpenScanner: () -> Unit
+    onDeleteSubject: (String) -> Unit
 ) {
     val visuals = LocalShinobiVisuals.current
     val settings = uiState.settings
@@ -173,7 +176,7 @@ fun ScheduleScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Futuristic Header Toolbar
+            // Schedule Header Toolbar
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -190,25 +193,34 @@ fun ScheduleScreen(
                         Text(
                             text = ShinobiTimeUtil.formatDateHeader(selectedDate),
                             style = MaterialTheme.typography.bodySmall,
-                            color = ChakraCyan,
+                            color = visuals.secondaryAccent,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        IconButton(
-                            onClick = { showSubjectsDialog = true },
-                            modifier = Modifier.size(48.dp).testTag("manage_subjects_button")
-                        ) {
-                            Icon(Icons.Filled.Book, contentDescription = "Manage Subjects", tint = NarutoOrange)
-                        }
-                        IconButton(
-                            onClick = onOpenScanner,
-                            modifier = Modifier.size(48.dp).testTag("schedule_scan_button")
-                        ) {
-                            Icon(Icons.Filled.DocumentScanner, contentDescription = "Scan Timetable", tint = ChakraCyan)
-                        }
+                    IconButton(
+                        onClick = { showSubjectsDialog = true },
+                        modifier = Modifier.size(48.dp).testTag("manage_subjects_button")
+                    ) {
+                        Icon(Icons.Filled.Book, contentDescription = "Manage Subjects", tint = visuals.primaryAccent)
                     }
                 }
+            }
+
+            // Atmospheric Kakashi / Susanoo Time-Block Banner
+            item {
+                val bannerDrawable = if (viewMode == ScheduleViewMode.WEEKLY || viewMode == ScheduleViewMode.MONTHLY) {
+                    R.drawable.img_sasuke_susanoo
+                } else {
+                    R.drawable.img_kakashi_hatake
+                }
+                NarutoHeroArtBanner(
+                    drawableRes = bannerDrawable,
+                    badgeLabel = "${viewMode.label.uppercase()} TIME-BLOCKS",
+                    title = "${displayedTasks.count { !it.completed }} Open • ${freeSlots.size} Free Slots",
+                    subtitle = "Tap any block to edit start/end time, or swipe right to mark complete.",
+                    accentColor = visuals.secondaryAccent,
+                    height = 108.dp
+                )
             }
 
             // Segmented View Switcher (Daily / Weekly / Monthly / Agenda / Free Time)
@@ -233,25 +245,25 @@ fun ScheduleScreen(
                 }
             }
 
-            // Glass Date Navigator Strip or Monthly Calendar Grid
+            // Frosted Date Navigator Strip or Monthly Calendar Grid
             item {
                 when (viewMode) {
                     ScheduleViewMode.MONTHLY -> MonthlyCalendarGrid(
                         selectedDate = selectedDate,
                         tasks = uiState.tasks,
-                        accentColor = ChakraCyan,
+                        accentColor = visuals.secondaryAccent,
                         onSelectDate = { selectedDate = it }
                     )
                     else -> WeeklyStripSelector(
                         selectedDate = selectedDate,
                         tasks = uiState.tasks,
-                        accentColor = ChakraCyan,
+                        accentColor = visuals.secondaryAccent,
                         onSelectDate = { selectedDate = it }
                     )
                 }
             }
 
-            // Holographic Current-Time Timeline Indicator when viewing Today
+            // Current-Time Timeline Indicator when viewing Today
             if (viewMode == ScheduleViewMode.DAILY && selectedDate == today) {
                 item {
                     CurrentTimeTimelineBar(
@@ -266,7 +278,11 @@ fun ScheduleScreen(
             // Conflict Detector Banner
             if (conflicts.isNotEmpty()) {
                 item {
-                    HoloCard(accentColor = CrimsonAlert, glowActive = true) {
+                    HoloCard(
+                        accentColor = CrimsonAlert,
+                        surfaceStyle = SurfaceStyle.GLASSMORPHISM,
+                        glowActive = true
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Warning, contentDescription = "Conflict", tint = CrimsonAlert)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -292,7 +308,10 @@ fun ScheduleScreen(
             // Free-time Slots Card
             if (showFreeSlots) {
                 item {
-                    HoloCard(accentColor = ChakraGreen) {
+                    HoloCard(
+                        accentColor = ChakraGreen,
+                        surfaceStyle = SurfaceStyle.CLAYMORPHISM
+                    ) {
                         Text(
                             text = "FREE STUDY SLOTS ($selectedIso)",
                             style = MaterialTheme.typography.labelLarge,
@@ -331,12 +350,13 @@ fun ScheduleScreen(
                 }
             }
 
-            // Task list depending on Daily / Weekly / Agenda / Monthly
+            // Claymorphic Time-Block Task Cards
             if (displayedTasks.isEmpty()) {
                 item {
                     HoloCard(
-                        accentColor = ChakraCyan,
+                        accentColor = visuals.secondaryAccent,
                         glassTier = GlassTier.SUBTLE,
+                        surfaceStyle = SurfaceStyle.CLAYMORPHISM,
                         onClick = {
                             editingTask = null
                             showTaskSheet = true
@@ -346,9 +366,9 @@ fun ScheduleScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Filled.Schedule, contentDescription = null, tint = ChakraCyan)
+                            Icon(Icons.Filled.Schedule, contentDescription = null, tint = visuals.secondaryAccent)
                             Text(
-                                text = "No missions scheduled for this view. Tap + to create a mission or scan your timetable.",
+                                text = "No missions scheduled for this view. Tap + to create a time-block mission.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -485,6 +505,7 @@ private fun WeeklyStripSelector(
     HoloCard(
         accentColor = accentColor,
         glassTier = GlassTier.SUBTLE,
+        surfaceStyle = SurfaceStyle.GLASSMORPHISM,
         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
     ) {
         Row(
@@ -505,6 +526,7 @@ private fun WeeklyStripSelector(
                 val selectedStyle = ThemeDesignSystem.glassStyle(
                     accentColor = accentColor,
                     tier = GlassTier.STANDARD,
+                    surfaceStyle = SurfaceStyle.CLAYMORPHISM,
                     glowActive = true,
                     cornerRadius = ThemeDesignSystem.CompactCornerRadius,
                     tintColor = accentColor
@@ -571,7 +593,7 @@ private fun MonthlyCalendarGrid(
     val leadingBlanks = (firstDay.dayOfWeek.value - 1)
     val totalDays = ym.lengthOfMonth()
 
-    HoloCard(accentColor = accentColor) {
+    HoloCard(accentColor = accentColor, surfaceStyle = SurfaceStyle.GLASSMORPHISM) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -654,6 +676,8 @@ private fun SwipeableTaskRow(
     onMoveUp: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var expanded by remember(task.id) { mutableStateOf(false) }
+
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             when (value) {
@@ -683,7 +707,7 @@ private fun SwipeableTaskRow(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     .background(bg)
                     .padding(horizontal = 20.dp),
                 contentAlignment = if (isCompleting) Alignment.CenterStart else Alignment.CenterEnd
@@ -699,18 +723,66 @@ private fun SwipeableTaskRow(
         HoloCard(
             accentColor = if (task.completed) JadeEmerald else tagColor,
             glassTier = GlassTier.STANDARD,
+            surfaceStyle = SurfaceStyle.CLAYMORPHISM,
             onClick = onEdit,
-            contentPadding = PaddingValues(12.dp)
+            contentPadding = PaddingValues(14.dp)
         ) {
+            // Clear Start-End Time-Block Pill + Rank Row
+            val startStr = ShinobiTimeUtil.formatTime(task.startTimeMinutes, use24HourClock)
+            val endStr = ShinobiTimeUtil.formatTime(task.endTimeMinutes, use24HourClock)
+            val durationMins = (task.endTimeMinutes - task.startTimeMinutes).coerceAtLeast(0)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    color = (if (task.completed) JadeEmerald else tagColor).copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Schedule,
+                            contentDescription = null,
+                            tint = if (task.completed) JadeEmerald else tagColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = buildString {
+                                if (showDate) append("${task.dateIso} • ")
+                                append("$startStr – $endStr (${durationMins}m)")
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (task.completed) JadeEmerald else tagColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    RankBadgeChip(task.missionRank)
+                    if (task.notes.isNotBlank() || subtasks.isNotEmpty()) {
+                        IconButton(
+                            onClick = { expanded = !expanded },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = if (expanded) "Collapse details" else "Expand details",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .height(40.dp)
-                        .clip(CircleShape)
-                        .background(if (task.completed) JadeEmerald else tagColor)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 ShurikenCheckbox(
                     checked = task.completed,
                     onToggle = onToggleComplete,
@@ -722,44 +794,48 @@ private fun SwipeableTaskRow(
                     Text(
                         text = task.title,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    val timeSpan = "${ShinobiTimeUtil.formatTime(task.startTimeMinutes, use24HourClock)} - ${
-                        ShinobiTimeUtil.formatTime(task.endTimeMinutes, use24HourClock)
-                    }"
                     Text(
                         text = buildString {
-                            if (showDate) append("${task.dateIso} • ")
-                            append(timeSpan)
-                            append(" • ${task.subjectName}")
+                            append(task.subjectName)
                             if (task.location.isNotBlank()) append(" • ${task.location}")
+                            append(" • +${task.xpReward} XP")
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                RankBadgeChip(task.missionRank)
             }
 
-            if (subtasks.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                subtasks.forEach { sub ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onToggleSubtask(sub) }
-                            .padding(start = 12.dp, top = 2.dp, bottom = 2.dp)
-                    ) {
-                        Checkbox(checked = sub.completed, onCheckedChange = { onToggleSubtask(sub) })
+            AnimatedVisibility(visible = expanded || subtasks.isNotEmpty()) {
+                Column(modifier = Modifier.padding(top = 6.dp)) {
+                    if (expanded && task.notes.isNotBlank()) {
                         Text(
-                            text = sub.title,
+                            text = task.notes,
                             style = MaterialTheme.typography.bodySmall,
-                            textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
+                    }
+                    subtasks.forEach { sub ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onToggleSubtask(sub) }
+                                .padding(start = 8.dp, top = 2.dp, bottom = 2.dp)
+                        ) {
+                            Checkbox(checked = sub.completed, onCheckedChange = { onToggleSubtask(sub) })
+                            Text(
+                                text = sub.title,
+                                style = MaterialTheme.typography.bodySmall,
+                                textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None
+                            )
+                        }
                     }
                 }
             }
@@ -801,7 +877,7 @@ private fun SubjectManagerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("University Subjects") },
+        title = { Text("Academy Subjects") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 subjects.forEach { s ->

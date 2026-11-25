@@ -1,21 +1,26 @@
 package com.example.data.repository
 
 import android.content.Context
-import com.example.core.common.ShinobiTimeUtil
-import com.example.core.common.MissionRank
-import com.example.core.common.RankProgression
 import com.example.core.common.RecurrenceRule
+import com.example.core.common.RankProgression
+import com.example.core.common.ShinobiTimeUtil
 import com.example.core.notifications.ReminderScheduler
-import com.example.data.local.*
-import com.example.data.remote.*
-import com.example.ui.auth.ShinobiLoginPersonalization
-import com.example.ui.theme.ThemePreset
-import com.google.firebase.Firebase
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.auth
+import com.example.data.local.AchievementEntity
+import com.example.data.local.ChatMessageEntity
+import com.example.data.local.ChatSessionEntity
+import com.example.data.local.MusicTrackEntity
+import com.example.data.local.PlannerTaskEntity
+import com.example.data.local.ShinobiDatabase
+import com.example.data.local.StudyNoteEntity
+import com.example.data.local.StudySessionEntity
+import com.example.data.local.SubjectEntity
+import com.example.data.local.SubtaskEntity
+import com.example.data.local.TaskCompletionHistoryEntity
+import com.example.data.local.UserProfileEntity
+import com.example.data.local.UserSettingsEntity
+import com.example.data.local.WallpaperItemEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -29,22 +34,27 @@ data class TaskConflict(
 
 class ShinobiRepository(
     private val context: Context,
-    private val db: ShinobiDatabase,
-    private val remote: FirestoreSyncRepository? = null
+    private val db: ShinobiDatabase
 ) {
     companion object {
         const val LOCAL_GUEST_UID = "local_shinobi"
+        const val LOCAL_PREFS_NAME = "shinobi_local_prefs"
+        const val KEY_ACTIVE_UID = "active_uid"
+
+        fun getCachedLocalUid(context: Context): String? =
+            context.applicationContext
+                .getSharedPreferences(LOCAL_PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_ACTIVE_UID, null)
+
+        fun setCachedLocalUid(context: Context, uid: String) {
+            context.applicationContext
+                .getSharedPreferences(LOCAL_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_ACTIVE_UID, uid)
+                .apply()
+        }
     }
 
-    private fun isCloudSyncAllowed(userId: String): Boolean =
-        remote != null &&
-            userId != LOCAL_GUEST_UID &&
-            runCatching { Firebase.auth.currentUser?.uid == userId }.getOrDefault(false)
-
-    private suspend fun shouldSyncToCloud(userId: String): Boolean {
-        if (!isCloudSyncAllowed(userId)) return false
-        return settingsDao.getSettingsOnce(userId)?.offlineModeOnly != true
-    }
     private val profileDao = db.userProfileDao()
     private val subjectDao = db.subjectDao()
     private val taskDao = db.plannerTaskDao()
@@ -63,119 +73,66 @@ class ShinobiRepository(
     fun observeSessions(uid: String): Flow<List<StudySessionEntity>> = sessionDao.observeSessions(uid)
     fun observeHistory(uid: String): Flow<List<TaskCompletionHistoryEntity>> = historyDao.observeHistory(uid)
     fun observeAchievements(uid: String): Flow<List<AchievementEntity>> = historyDao.observeAchievements(uid)
-    fun observeChats(uid: String): Flow<List<ChatSessionEntity>> = chatDao.observeChats(uid)
-    fun observeMessages(chatId: String): Flow<List<ChatMessageEntity>> = chatDao.observeMessages(chatId)
     fun observeWallpapers(uid: String): Flow<List<WallpaperItemEntity>> = mediaDao.observeWallpapers(uid)
     fun observeTracks(uid: String): Flow<List<MusicTrackEntity>> = mediaDao.observeTracks(uid)
     fun observeNotes(uid: String): Flow<List<StudyNoteEntity>> = notesDao.observeNotes(uid)
-    fun observeScans(uid: String): Flow<List<TimetableScanEntity>> = notesDao.observeScans(uid)
     fun observeSettings(uid: String): Flow<UserSettingsEntity?> = settingsDao.observeSettings(uid)
 
-    suspend fun ensureUserInitialized(
-        firebaseUser: FirebaseUser?,
-        loginPersonalization: ShinobiLoginPersonalization? = null
-    ) {
-        val uid = firebaseUser?.uid ?: LOCAL_GUEST_UID
-        val customCallsign = loginPersonalization?.callsign?.trim()?.takeIf { it.isNotBlank() }
-        val chosenTrack = loginPersonalization?.academicTrack?.trim()?.takeIf { it.isNotBlank() }
+    /**
+     * Resolves the active local profile UID, safely migrating any previously signed-in
+     * local Room profile into offline-only continuity without losing tasks, XP, or history.
+     */
+    suspend fun resolveActiveLocalUid(): String {
+        val cached = getCachedLocalUid(context)
+        if (!cached.isNullOrBlank() && profileDao.getProfileOnce(cached) != null) {
+            return cached
+        }
+        val mostRecent = profileDao.getMostRecentProfileOnce()
+        val resolved = mostRecent?.uid ?: LOCAL_GUEST_UID
+        setCachedLocalUid(context, resolved)
+        return resolved
+    }
+
+    suspend fun ensureUserInitialized(uid: String = LOCAL_GUEST_UID) {
+        setCachedLocalUid(context, uid)
 
         val existingProfile = profileDao.getProfileOnce(uid)
         if (existingProfile == null) {
-            val remoteProfile = if (firebaseUser != null && remote != null) {
-                withTimeoutOrNull(8_000L) {
-                    remote.fetchUserProfile(uid).getOrNull()
-                }
-            } else {
-                null
-            }
-            val newProfile = if (remoteProfile != null) {
+            profileDao.upsertProfile(
                 UserProfileEntity(
                     uid = uid,
-                    displayName = customCallsign
-                        ?: remoteProfile.displayName.ifBlank { firebaseUser?.displayName ?: "Shinobi Scholar" },
-                    username = remoteProfile.username.ifBlank { "shinobi_${uid.take(6)}" },
-                    email = remoteProfile.email.ifBlank { firebaseUser?.email ?: "" },
-                    photoUrl = remoteProfile.photoUrl ?: firebaseUser?.photoUrl?.toString().orEmpty(),
-                    university = remoteProfile.university,
-                    department = remoteProfile.department,
-                    academicYear = chosenTrack ?: remoteProfile.academicYear,
-                    xp = remoteProfile.xp.toInt(),
-                    level = remoteProfile.level.toInt().coerceAtLeast(1),
-                    ninjaTitle = remoteProfile.ninjaTitle,
-                    currentStreak = remoteProfile.currentStreak.toInt(),
-                    longestStreak = remoteProfile.longestStreak.toInt(),
-                    lastActiveDate = remoteProfile.lastActiveDate.orEmpty(),
-                    onboardingCompleted = remoteProfile.onboardingCompleted
-                )
-            } else if (firebaseUser != null) {
-                UserProfileEntity(
-                    uid = uid,
-                    displayName = customCallsign ?: firebaseUser.displayName ?: "Shinobi Scholar",
-                    username = (firebaseUser.email?.substringBefore("@") ?: "shinobi_${uid.take(5)}"),
-                    email = firebaseUser.email ?: "",
-                    photoUrl = firebaseUser.photoUrl?.toString().orEmpty(),
-                    academicYear = chosenTrack ?: "",
-                    xp = 0,
-                    level = 1,
-                    ninjaTitle = RankProgression.titleForLevel(1),
-                    onboardingCompleted = false
-                )
-            } else {
-                UserProfileEntity(
-                    uid = LOCAL_GUEST_UID,
-                    displayName = customCallsign ?: "Shinobi Scholar",
+                    displayName = "Shinobi Scholar",
                     username = "local_shinobi",
                     email = "",
                     photoUrl = "",
-                    academicYear = chosenTrack ?: "",
+                    academicYear = "",
                     xp = 0,
                     level = 1,
                     ninjaTitle = RankProgression.titleForLevel(1),
                     onboardingCompleted = false
                 )
-            }
-            profileDao.upsertProfile(newProfile)
-            if ((remoteProfile == null || loginPersonalization != null) && firebaseUser != null) {
-                withTimeoutOrNull(8_000L) {
-                    syncProfileToCloud(newProfile)
-                }
-            }
-        } else if (loginPersonalization != null) {
-            val updatedProfile = existingProfile.copy(
-                displayName = customCallsign ?: existingProfile.displayName,
-                academicYear = chosenTrack ?: existingProfile.academicYear,
-                updatedAtEpochMs = System.currentTimeMillis()
             )
-            if (updatedProfile != existingProfile) {
-                saveProfile(updatedProfile)
-            }
         }
 
         val existingSettings = settingsDao.getSettingsOnce(uid)
-        val accentKeyForPreset = when (loginPersonalization?.themePreset) {
-            ThemePreset.CYBER_SHINOBI -> "CYAN"
-            ThemePreset.ACADEMIC -> "GOLD"
-            ThemePreset.MINIMAL -> "EMERALD"
-            else -> "ORANGE"
-        }
         if (existingSettings == null) {
-            val initialSettings = if (loginPersonalization != null) {
+            settingsDao.upsertSettings(
                 UserSettingsEntity(
                     userId = uid,
-                    themePreset = loginPersonalization.themePreset.name,
-                    accentColorKey = accentKeyForPreset,
-                    aiPersonality = loginPersonalization.aiPersonality.code
+                    themePreset = "NARUTO_CHAKRA",
+                    aiEnabled = false,
+                    floatingAiEnabled = false,
+                    offlineModeOnly = true,
+                    dashboardWidgetsCsv = "PROGRESS,NEXT_CLASS,TIMER,MISSIONS,WEEKLY,QUICK_ACTIONS"
                 )
-            } else {
-                UserSettingsEntity(userId = uid)
-            }
-            settingsDao.upsertSettings(initialSettings)
-        } else if (loginPersonalization != null) {
-            saveSettings(
+            )
+        } else if (existingSettings.aiEnabled || existingSettings.floatingAiEnabled || !existingSettings.offlineModeOnly) {
+            settingsDao.upsertSettings(
                 existingSettings.copy(
-                    themePreset = loginPersonalization.themePreset.name,
-                    accentColorKey = accentKeyForPreset,
-                    aiPersonality = loginPersonalization.aiPersonality.code
+                    aiEnabled = false,
+                    floatingAiEnabled = false,
+                    offlineModeOnly = true,
+                    updatedAtEpochMs = System.currentTimeMillis()
                 )
             )
         }
@@ -190,8 +147,8 @@ class ShinobiRepository(
                     id = "builtin_village_$uid",
                     userId = uid,
                     screenTarget = "GLOBAL",
-                    uriString = "builtin://bg_ninja_village",
-                    builtInResName = "bg_ninja_village",
+                    uriString = "builtin://img_naruto_uzumaki",
+                    builtInResName = "img_naruto_uzumaki",
                     brightness = 0.72f,
                     blurRadius = 2f,
                     overlayOpacity = 0.65f,
@@ -207,64 +164,28 @@ class ShinobiRepository(
         AchievementEntity("ach_streak7_$uid", uid, "Shadow Discipline", "Maintain a 7-day study streak", "STREAK_7", false, 300),
         AchievementEntity("ach_focus60_$uid", uid, "Deep Meditation", "Complete 60+ minutes of focus sessions", "FOCUS_60", false, 120),
         AchievementEntity("ach_srank_$uid", uid, "S-Rank Clearance", "Complete an S-Rank mission or exam prep", "S_RANK", false, 250),
-        AchievementEntity("ach_scanner_$uid", uid, "Optical Jutsu", "Import or scan a timetable with AI", "AI_SCAN", false, 100)
+        AchievementEntity("ach_scanner_$uid", uid, "Scroll Scholar", "Organize 3 study scrolls or 5 missions", "SCROLL_MASTER", false, 100)
     )
 
     suspend fun saveProfile(profile: UserProfileEntity) {
         val updated = profile.copy(updatedAtEpochMs = System.currentTimeMillis())
         profileDao.upsertProfile(updated)
-        if (shouldSyncToCloud(profile.uid)) {
-            syncProfileToCloud(updated)
-        }
-    }
-
-    private suspend fun syncProfileToCloud(profile: UserProfileEntity) {
-        val cloudRemote = remote ?: return
-        cloudRemote.upsertUserProfile(
-            UserProfileCloud(
-                userId = profile.uid,
-                displayName = profile.displayName,
-                username = profile.username,
-                email = profile.email,
-                university = profile.university,
-                department = profile.department,
-                academicYear = profile.academicYear,
-                xp = profile.xp.toLong(),
-                level = profile.level.toLong(),
-                ninjaTitle = profile.ninjaTitle,
-                currentStreak = profile.currentStreak.toLong(),
-                longestStreak = profile.longestStreak.toLong(),
-                onboardingCompleted = profile.onboardingCompleted,
-                photoUrl = profile.photoUrl.ifBlank { null },
-                lastActiveDate = profile.lastActiveDate.ifBlank { null }
-            )
-        )
     }
 
     suspend fun saveSettings(settings: UserSettingsEntity) {
-        settingsDao.upsertSettings(settings.copy(updatedAtEpochMs = System.currentTimeMillis()))
+        settingsDao.upsertSettings(
+            settings.copy(
+                aiEnabled = false,
+                floatingAiEnabled = false,
+                offlineModeOnly = true,
+                updatedAtEpochMs = System.currentTimeMillis()
+            )
+        )
     }
 
     suspend fun addOrUpdateSubject(subject: SubjectEntity) {
         val updated = subject.copy(updatedAtEpochMs = System.currentTimeMillis(), synced = false)
         subjectDao.upsertSubject(updated)
-        if (shouldSyncToCloud(subject.userId)) {
-            val res = remote?.upsertSubject(
-                updated.id,
-                CloudSubject(
-                    userId = updated.userId,
-                    name = updated.name,
-                    code = updated.code,
-                    instructor = updated.instructor.ifBlank { null },
-                    room = updated.room.ifBlank { null },
-                    colorHex = updated.colorHex,
-                    targetHoursPerWeek = updated.targetHoursPerWeek.toLong()
-                )
-            )
-            if (res?.isSuccess == true) {
-                subjectDao.upsertSubject(updated.copy(synced = true))
-            }
-        }
     }
 
     suspend fun deleteSubject(subjectId: String) {
@@ -279,37 +200,6 @@ class ShinobiRepository(
             subtaskDao.upsertSubtask(sub.copy(taskId = entity.id, sortOrder = idx))
         }
         ReminderScheduler.scheduleTaskReminders(context, entity)
-
-        if (shouldSyncToCloud(entity.userId)) {
-            val summary = subtasks.joinToString(" | ") { "${if (it.completed) "[x]" else "[ ]"} ${it.title}" }
-                .ifBlank { null }
-            val res = remote?.upsertTask(
-                entity.id,
-                CloudTask(
-                    userId = entity.userId,
-                    title = entity.title,
-                    notes = entity.notes.ifBlank { null },
-                    subjectName = entity.subjectName.ifBlank { null },
-                    category = entity.category,
-                    dateIso = entity.dateIso,
-                    startTimeMinutes = entity.startTimeMinutes.toLong(),
-                    endTimeMinutes = entity.endTimeMinutes.toLong(),
-                    priority = entity.priority,
-                    missionRank = entity.missionRank,
-                    recurrence = entity.recurrence,
-                    location = entity.location.ifBlank { null },
-                    reminderOffsets = entity.reminderOffsetsCsv.ifBlank { null },
-                    xpReward = entity.xpReward.toLong(),
-                    colorHex = entity.colorHex,
-                    completed = entity.completed,
-                    subtasksSummary = summary,
-                    completedAtIso = entity.completedAtIso.ifBlank { null }
-                )
-            )
-            if (res?.isSuccess == true) {
-                taskDao.upsertTask(entity.copy(synced = true))
-            }
-        }
     }
 
     suspend fun toggleSubtask(subtask: SubtaskEntity) {
@@ -365,7 +255,6 @@ class ShinobiRepository(
                 )
                 evaluateAchievements(task.userId, newStreak, task.missionRank)
 
-                // Auto-create next occurrence if recurring and completing for the first time
                 val rec = RecurrenceRule.fromCode(task.recurrence)
                 if (rec != RecurrenceRule.NONE) {
                     val currentDate = runCatching { LocalDate.parse(task.dateIso) }.getOrNull()
@@ -426,6 +315,8 @@ class ShinobiRepository(
         if (current.isEmpty()) return
         val sessions = sessionDao.getSessionsOnce(uid)
         val totalFocusMins = sessions.sumOf { it.durationMinutes }
+        val notes = notesDao.observeNotes(uid).first()
+        val tasks = taskDao.getTasksOnce(uid)
         val scans = notesDao.observeScans(uid).first()
 
         val updated = current.map { ach ->
@@ -435,7 +326,7 @@ class ShinobiRepository(
                 "STREAK_7" -> streak >= 7
                 "FOCUS_60" -> totalFocusMins >= 60
                 "S_RANK" -> completedRank.equals("S", ignoreCase = true)
-                "AI_SCAN" -> scans.isNotEmpty()
+                "AI_SCAN", "SCROLL_MASTER" -> scans.isNotEmpty() || notes.size >= 3 || tasks.size >= 5
                 else -> false
             }
             if (shouldUnlock && !ach.unlocked) {
@@ -448,9 +339,6 @@ class ShinobiRepository(
     suspend fun deleteTask(task: PlannerTaskEntity) {
         ReminderScheduler.cancelTaskReminders(context, task.id)
         taskDao.deleteById(task.id)
-        if (shouldSyncToCloud(task.userId)) {
-            remote?.deleteTask(task.id)
-        }
     }
 
     suspend fun duplicateTask(task: PlannerTaskEntity) {
@@ -493,21 +381,6 @@ class ShinobiRepository(
         )
         sessionDao.insertSession(session)
 
-        if (shouldSyncToCloud(userId)) {
-            remote?.insertStudySession(
-                session.id,
-                CloudStudySession(
-                    userId = userId,
-                    subjectName = session.subjectName,
-                    mode = mode,
-                    durationMinutes = durationMinutes.toLong(),
-                    xpEarned = xp.toLong(),
-                    startedAtEpochMs = session.startedAtEpochMs,
-                    taskId = taskId.ifBlank { null }
-                )
-            )
-        }
-
         val todayIso = ShinobiTimeUtil.nowZoned().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val profile = profileDao.getProfileOnce(userId)
         var rankUpTitle: String? = null
@@ -534,84 +407,38 @@ class ShinobiRepository(
     suspend fun saveNote(note: StudyNoteEntity) {
         val updated = note.copy(updatedAtEpochMs = System.currentTimeMillis(), synced = false)
         notesDao.upsertNote(updated)
-        if (shouldSyncToCloud(note.userId)) {
-            remote?.upsertNote(
-                updated.id,
-                CloudNote(
-                    userId = updated.userId,
-                    title = updated.title,
-                    content = updated.content,
-                    subjectName = updated.subjectName,
-                    linkedTaskId = updated.linkedTaskId.ifBlank { null }
-                )
-            )
-        }
+        val profile = profileDao.getProfileOnce(note.userId)
+        evaluateAchievements(note.userId, profile?.currentStreak ?: 0, "C")
     }
 
     suspend fun deleteNote(noteId: String) = notesDao.deleteNote(noteId)
 
-    suspend fun recordTimetableScan(scan: TimetableScanEntity) {
-        notesDao.insertScan(scan)
-        val profile = profileDao.getProfileOnce(scan.userId)
-        evaluateAchievements(scan.userId, profile?.currentStreak ?: 0, "C")
+    suspend fun upsertWallpaper(wallpaper: WallpaperItemEntity) = mediaDao.upsertWallpaper(wallpaper)
+
+    suspend fun setBuiltinWallpaper(userId: String, screenTarget: String, resName: String) {
+        val normalizedTarget = screenTarget.uppercase()
+        val existing = mediaDao.observeWallpapers(userId).first()
+        val existingBuiltIn = existing.firstOrNull {
+            it.screenTarget.equals(normalizedTarget, ignoreCase = true) && it.uriString.startsWith("builtin://")
+        }
+        val entity = WallpaperItemEntity(
+            id = existingBuiltIn?.id ?: "builtin_sel_${normalizedTarget}_$userId",
+            userId = userId,
+            screenTarget = normalizedTarget,
+            uriString = "builtin://$resName",
+            builtInResName = resName,
+            brightness = existingBuiltIn?.brightness ?: 0.72f,
+            blurRadius = existingBuiltIn?.blurRadius ?: 2f,
+            overlayOpacity = existingBuiltIn?.overlayOpacity ?: 0.65f,
+            parallaxEnabled = existingBuiltIn?.parallaxEnabled ?: true
+        )
+        mediaDao.upsertWallpaper(entity)
     }
 
-    suspend fun upsertWallpaper(wallpaper: WallpaperItemEntity) = mediaDao.upsertWallpaper(wallpaper)
     suspend fun deleteWallpaper(id: String) = mediaDao.deleteWallpaper(id)
 
     suspend fun upsertTrack(track: MusicTrackEntity) = mediaDao.upsertTrack(track)
-    suspend fun upsertTracks(tracks: List<MusicTrackEntity>) = mediaDao.upsertAllTracks(tracks)
     suspend fun deleteTrack(id: String) = mediaDao.deleteTrack(id)
-
-    suspend fun createOrUpdateChat(chat: ChatSessionEntity) = chatDao.upsertChat(chat)
-    suspend fun deleteChat(chatId: String) = chatDao.deleteChat(chatId)
-    suspend fun deleteAllChats(userId: String) = chatDao.deleteAllChatsForUser(userId)
-    suspend fun saveChatMessage(message: ChatMessageEntity) = chatDao.upsertMessage(message)
-
-    suspend fun syncPendingToCloud(userId: String): Result<Int> {
-        if (!isCloudSyncAllowed(userId)) {
-            return Result.failure(IllegalStateException("Sign in with Google under Settings to sync to cloud."))
-        }
-        var syncedCount = 0
-        val unsyncedTasks = taskDao.getUnsyncedTasks(userId)
-        for (task in unsyncedTasks) {
-            val res = remote?.upsertTask(
-                task.id,
-                CloudTask(
-                    userId = task.userId,
-                    title = task.title,
-                    notes = task.notes.ifBlank { null },
-                    subjectName = task.subjectName.ifBlank { null },
-                    category = task.category,
-                    dateIso = task.dateIso,
-                    startTimeMinutes = task.startTimeMinutes.toLong(),
-                    endTimeMinutes = task.endTimeMinutes.toLong(),
-                    priority = task.priority,
-                    missionRank = task.missionRank,
-                    recurrence = task.recurrence,
-                    location = task.location.ifBlank { null },
-                    reminderOffsets = task.reminderOffsetsCsv.ifBlank { null },
-                    xpReward = task.xpReward.toLong(),
-                    colorHex = task.colorHex,
-                    completed = task.completed,
-                    completedAtIso = task.completedAtIso.ifBlank { null }
-                )
-            )
-            if (res?.isSuccess == true) {
-                taskDao.upsertTask(task.copy(synced = true))
-                syncedCount++
-            }
-        }
-        profileDao.getProfileOnce(userId)?.let { syncProfileToCloud(it) }
-        val allTasks = taskDao.getTasksOnce(userId)
-        val profile = profileDao.getProfileOnce(userId)
-        remote?.createBackupSnapshot(
-            summary = "Shinobi Sync (${allTasks.size} missions)",
-            taskCount = allTasks.size,
-            xpSnapshot = profile?.xp ?: 0
-        )
-        return Result.success(syncedCount)
-    }
 
     suspend fun deleteAllUserData(userId: String): Result<Unit> {
         taskDao.deleteAllForUser(userId)
@@ -624,7 +451,7 @@ class ShinobiRepository(
         notesDao.deleteAllNotesForUser(userId)
         settingsDao.deleteSettings(userId)
         profileDao.deleteProfile(userId)
-        return if (isCloudSyncAllowed(userId)) remote?.deleteAllUserCloudData() ?: Result.success(Unit) else Result.success(Unit)
+        return Result.success(Unit)
     }
 
     fun detectConflicts(tasksForDay: List<PlannerTaskEntity>): List<TaskConflict> {

@@ -5,10 +5,28 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -17,22 +35,53 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
+import com.example.core.common.NarutoArtwork
+import com.example.core.common.NarutoVisualCatalog
 import com.example.core.media.AudioPlaybackState
 import com.example.core.media.ShinobiSfx
 import com.example.data.local.MusicTrackEntity
 import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
 import com.example.data.local.WallpaperItemEntity
-import com.example.ui.theme.*
+import com.example.ui.theme.CrimsonAlert
+import com.example.ui.theme.GlassWhite
+import com.example.ui.theme.JadeEmerald
+import com.example.ui.theme.LocalShinobiVisuals
+import com.example.ui.theme.MidnightNavy
 
 @Composable
 fun ProfileEditDialog(
@@ -56,7 +105,7 @@ fun ProfileEditDialog(
             ) {
                 OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display Name") }, singleLine = true)
                 OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Shinobi Handle") }, singleLine = true)
-                OutlinedTextField(value = university, onValueChange = { university = it }, label = { Text("University") }, singleLine = true)
+                OutlinedTextField(value = university, onValueChange = { university = it }, label = { Text("Academy / University") }, singleLine = true)
                 OutlinedTextField(value = department, onValueChange = { department = it }, label = { Text("Department") }, singleLine = true)
                 OutlinedTextField(value = academicYear, onValueChange = { academicYear = it }, label = { Text("Academic Year") }, singleLine = true)
             }
@@ -90,6 +139,7 @@ fun WallpaperStudioDialog(
     wallpapers: List<WallpaperItemEntity>,
     settings: UserSettingsEntity,
     onDismiss: () -> Unit,
+    onSelectBuiltinWallpaper: (resName: String, screenTarget: String) -> Unit,
     onAddWallpaper: (String, String) -> Unit,
     onUpdateTuning: (WallpaperItemEntity, Float, Float, Float, Boolean) -> Unit,
     onDeleteWallpaper: (String) -> Unit,
@@ -97,9 +147,20 @@ fun WallpaperStudioDialog(
     onUpdateSettings: ((UserSettingsEntity) -> UserSettingsEntity) -> Unit
 ) {
     val context = LocalContext.current
+    val visuals = LocalShinobiVisuals.current
     var targetScreen by remember { mutableStateOf("GLOBAL") }
-    val active = wallpapers.firstOrNull { it.screenTarget == targetScreen }
-        ?: wallpapers.firstOrNull { it.screenTarget == "GLOBAL" }
+    var previewArtwork by remember(targetScreen) {
+        val currentBuiltIn = wallpapers.firstOrNull {
+            it.screenTarget.equals(targetScreen, ignoreCase = true) && it.builtInResName.isNotBlank()
+        }?.builtInResName
+        mutableStateOf(
+            NarutoVisualCatalog.artworks.firstOrNull { it.resName.equals(currentBuiltIn, ignoreCase = true) }
+                ?: NarutoVisualCatalog.artworks.first()
+        )
+    }
+
+    val active = wallpapers.firstOrNull { it.screenTarget.equals(targetScreen, ignoreCase = true) }
+        ?: wallpapers.firstOrNull { it.screenTarget.equals("GLOBAL", ignoreCase = true) }
 
     var brightness by remember(active?.id) { mutableFloatStateOf(active?.brightness ?: 0.72f) }
     var blur by remember(active?.id) { mutableFloatStateOf(active?.blurRadius ?: 2f) }
@@ -127,15 +188,15 @@ fun WallpaperStudioDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Wallpapers & Visual Studio") },
+        title = { Text("Naruto Wallpaper Studio") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Target Screen", style = MaterialTheme.typography.labelMedium)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("GLOBAL", "HOME", "SCHEDULE", "MISSIONS").forEach { scr ->
+                Text("1. Target Screen", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(listOf("GLOBAL", "HOME", "SCHEDULE", "MISSIONS", "PROGRESS", "SETTINGS")) { scr ->
                         FilterChip(
                             selected = targetScreen == scr,
                             onClick = { targetScreen = scr },
@@ -144,6 +205,74 @@ fun WallpaperStudioDialog(
                     }
                 }
 
+                // Live Preview Card of Selected Naruto Artwork
+                LiveArtworkPreviewCard(
+                    artwork = previewArtwork,
+                    targetScreen = targetScreen,
+                    accentColor = visuals.primaryAccent,
+                    onApply = { onSelectBuiltinWallpaper(previewArtwork.resName, targetScreen) }
+                )
+
+                Text(
+                    text = "2. Offline Naruto Gallery (${NarutoVisualCatalog.artworks.size} Artworks)",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(NarutoVisualCatalog.artworks, key = { it.resName }) { art ->
+                        val isPreviewed = previewArtwork.resName == art.resName
+                        val isApplied = active?.builtInResName.equals(art.resName, ignoreCase = true)
+                        Column(
+                            modifier = Modifier
+                                .width(92.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(
+                                    width = if (isPreviewed) 2.dp else 1.dp,
+                                    color = if (isPreviewed) visuals.primaryAccent else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(14.dp)
+                                )
+                                .clickable { previewArtwork = art }
+                                .padding(4.dp)
+                                .testTag("wallpaper_gallery_${art.resName}"),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(74.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                            ) {
+                                Image(
+                                    painter = painterResource(id = art.drawableRes),
+                                    contentDescription = art.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                if (isApplied) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CheckCircle,
+                                        contentDescription = "Applied",
+                                        tint = JadeEmerald,
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(4.dp)
+                                            .size(16.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = art.title,
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = if (isPreviewed) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                Text("Or Import Custom Device Image", style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
@@ -160,13 +289,14 @@ fun WallpaperStudioDialog(
                 }
 
                 if (active != null) {
+                    HorizontalDivider()
                     Text("Brightness: ${(brightness * 100).toInt()}%")
                     Slider(value = brightness, onValueChange = { brightness = it }, valueRange = 0.2f..1f)
 
                     Text("Blur Radius: ${blur.toInt()}dp")
                     Slider(value = blur, onValueChange = { blur = it }, valueRange = 0f..20f)
 
-                    Text("Overlay Opacity: ${(overlay * 100).toInt()}%")
+                    Text("Dark Scrim Opacity: ${(overlay * 100).toInt()}%")
                     Slider(value = overlay, onValueChange = { overlay = it }, valueRange = 0.2f..0.9f)
 
                     Row(
@@ -182,7 +312,7 @@ fun WallpaperStudioDialog(
                         onClick = { onUpdateTuning(active, brightness, blur, overlay, parallax) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Apply Tuning")
+                        Text("Apply Visual Tuning")
                     }
                 }
 
@@ -202,10 +332,11 @@ fun WallpaperStudioDialog(
                 }
 
                 if (wallpapers.size > 1) {
-                    Text("Saved Wallpapers (${wallpapers.size})", style = MaterialTheme.typography.labelMedium)
-                    wallpapers.filter { !it.builtInResName.equals("bg_ninja_village", true) }.forEach { w ->
+                    Text("Screen Overrides (${wallpapers.size})", style = MaterialTheme.typography.labelMedium)
+                    wallpapers.forEach { w ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Text("${w.screenTarget} custom image", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            val labelName = w.builtInResName.ifBlank { "Custom device image" }
+                            Text("${w.screenTarget}: $labelName", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             IconButton(onClick = { onDeleteWallpaper(w.id) }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Delete Wallpaper", tint = CrimsonAlert)
                             }
@@ -214,7 +345,7 @@ fun WallpaperStudioDialog(
                 }
 
                 TextButton(onClick = onResetWallpapers) {
-                    Text("Reset to Default Ninja Village")
+                    Text("Restore Default Naruto Artwork")
                 }
             }
         },
@@ -222,6 +353,68 @@ fun WallpaperStudioDialog(
             TextButton(onClick = onDismiss) { Text("Done") }
         }
     )
+}
+
+@Composable
+private fun LiveArtworkPreviewCard(
+    artwork: NarutoArtwork,
+    targetScreen: String,
+    accentColor: Color,
+    onApply: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(132.dp)
+            .clip(shape)
+            .border(1.2.dp, accentColor.copy(alpha = 0.6f), shape)
+    ) {
+        Image(
+            painter = painterResource(id = artwork.drawableRes),
+            contentDescription = artwork.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, MidnightNavy.copy(alpha = 0.88f))
+                    )
+                )
+        )
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Surface(color = accentColor.copy(alpha = 0.25f), shape = RoundedCornerShape(6.dp)) {
+                    Text(
+                        text = artwork.clanTag,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accentColor,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(artwork.title, style = MaterialTheme.typography.titleSmall, color = GlassWhite, fontWeight = FontWeight.Bold)
+                Text(artwork.subtitle, style = MaterialTheme.typography.labelSmall, color = GlassWhite.copy(alpha = 0.8f), maxLines = 1)
+            }
+            Button(
+                onClick = onApply,
+                modifier = Modifier.testTag("apply_selected_wallpaper_button")
+            ) {
+                Text("Apply to $targetScreen", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
 }
 
 @Composable
@@ -436,25 +629,25 @@ fun PinSetupDialog(
 fun AboutAndApkGuideDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("APK Build & Play Compliance") },
+        title = { Text("Shinobi Planner Offline Edition") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("1. GitHub Actions APK Download", fontWeight = FontWeight.Bold)
+                Text("1. 100% Offline Privacy", fontWeight = FontWeight.Bold)
                 Text(
-                    "Push this repository to GitHub. Open the repository Actions tab -> 'Android Build & Test' -> run/select latest workflow -> download 'shinobi-planner-debug-apk' artifact containing app-debug.apk.",
+                    "All schedules, study scrolls, XP progress, and focus sessions stay encrypted in your device Room database with zero internet connections or cloud telemetry.",
                     style = MaterialTheme.typography.bodySmall
                 )
-                Text("2. Local Debug vs Play Store Release Signing", fontWeight = FontWeight.Bold)
+                Text("2. Bundled Naruto Artworks & Themes", fontWeight = FontWeight.Bold)
                 Text(
-                    "For Google Play release builds, configure KEYSTORE_PATH, STORE_PASSWORD, and KEY_PASSWORD in CI secrets or AI Studio Secrets without modifying debug.keystore.",
+                    "Includes 12 bundled offline artworks and 8 multi-style visual themes (Naruto Chakra, Sage Mode, Kurama, Sasuke, Akatsuki, Dark Japanese, Premium Glass, and Clay).",
                     style = MaterialTheme.typography.bodySmall
                 )
-                Text("3. Privacy & Data Protection", fontWeight = FontWeight.Bold)
+                Text("3. Zero Broad Storage Permissions", fontWeight = FontWeight.Bold)
                 Text(
-                    "All media imports use Android Photo Picker / SAF (zero broad storage permissions). Cloud sync is protected by Firebase Auth + App Check + strict owner-only Firestore rules. You can export or delete your entire account data anytime from Settings.",
+                    "Wallpaper and music imports use Android Photo Picker / SAF so your device privacy stays protected. You can export JSON/CSV/PDF backups anytime.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

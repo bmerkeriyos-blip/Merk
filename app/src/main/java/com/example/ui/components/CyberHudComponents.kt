@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.os.Build
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -16,15 +17,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,8 +39,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -54,7 +51,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,9 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -73,7 +67,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -83,29 +76,24 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.R
 import com.example.core.common.MissionRank
+import com.example.core.common.NarutoVisualCatalog
 import com.example.data.local.UserSettingsEntity
 import com.example.data.local.WallpaperItemEntity
-import com.example.ui.theme.AcademicSurfaceVariant
-import com.example.ui.theme.ArcaneViolet
+import com.example.ui.theme.AppearanceMode
 import com.example.ui.theme.ChakraCyan
 import com.example.ui.theme.ChakraGreen
-import com.example.ui.theme.ChakraOrange
 import com.example.ui.theme.CrimsonAlert
 import com.example.ui.theme.CyberTextSecondary
 import com.example.ui.theme.GlassWhite
 import com.example.ui.theme.GoldRankS
-import com.example.ui.theme.HoloSurface
-import com.example.ui.theme.HoloSurfaceElevated
 import com.example.ui.theme.HolographicPurple
-import com.example.ui.theme.JadeEmerald
 import com.example.ui.theme.LocalShinobiVisuals
 import com.example.ui.theme.MidnightNavy
 import com.example.ui.theme.NarutoOrange
 import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.SurfaceStyle
 import com.example.ui.theme.ThemeDesignSystem
-import com.example.ui.theme.ThemePreset
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
@@ -152,27 +140,33 @@ fun ShinobiWallpaperBackdrop(
     }
 
     val active = targetWallpapers.getOrNull(slideshowIndex % targetWallpapers.size.coerceAtLeast(1))
-    val blurDp = ThemeDesignSystem.backdropBlurRadius(active?.blurRadius ?: 3f, visuals)
-    val brightness = (active?.brightness ?: 0.70f).coerceIn(0.15f, 1f)
-    val overlayOpacity = (active?.overlayOpacity ?: 0.68f).coerceIn(0.15f, 0.94f)
+    val blurDp = ThemeDesignSystem.backdropBlurRadius(active?.blurRadius ?: 2.5f, visuals)
+    val brightness = (active?.brightness ?: 0.72f).coerceIn(0.15f, 1f)
+    val overlayOpacity = (active?.overlayOpacity ?: 0.66f).coerceIn(0.15f, 0.94f)
     val parallaxOffsetY = if (active?.parallaxEnabled != false && visuals.animationsEnabled) {
         (scrollParallaxPx * 0.15f).coerceIn(-60f, 60f)
     } else 0f
+
+    // Determine whether user chose an explicit override vs auto-seeded default
+    val isScreenSpecificOrUserChosen = active != null && (
+        active.screenTarget.equals(screenTarget, ignoreCase = true) ||
+            !active.id.startsWith("builtin_village_")
+        )
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        if (visuals.preset != ThemePreset.AMOLED && visuals.preset != ThemePreset.MINIMAL) {
+        if (visuals.appearanceMode != AppearanceMode.AMOLED) {
             val isBuiltIn = active == null ||
-                active.builtInResName.equals("bg_ninja_village", ignoreCase = true) ||
-                active.uriString.startsWith("builtin://")
+                active.uriString.startsWith("builtin://") ||
+                active.builtInResName.isNotBlank()
 
             val imageModifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset(0, parallaxOffsetY.roundToInt()) }
-                .alpha(if (visuals.isDark) brightness * 0.50f else brightness * 0.16f)
+                .alpha(if (visuals.isDark) brightness * 0.56f else brightness * 0.18f)
                 .then(
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && blurDp > 0.dp) {
                         Modifier.blur(blurDp)
@@ -182,15 +176,21 @@ fun ShinobiWallpaperBackdrop(
                 )
 
             if (isBuiltIn) {
+                val builtInResName = if (isScreenSpecificOrUserChosen) {
+                    active?.builtInResName?.ifBlank { active.uriString.removePrefix("builtin://") }
+                        ?: NarutoVisualCatalog.defaultResNameForScreen(screenTarget, visuals.preset.name)
+                } else {
+                    NarutoVisualCatalog.defaultResNameForScreen(screenTarget, visuals.preset.name)
+                }
                 Image(
-                    painter = painterResource(id = R.drawable.bg_ninja_village),
+                    painter = painterResource(id = NarutoVisualCatalog.resolveDrawable(builtInResName)),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = imageModifier
                 )
             } else {
                 AsyncImage(
-                    model = active.uriString,
+                    model = active?.uriString,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = imageModifier
@@ -204,22 +204,21 @@ fun ShinobiWallpaperBackdrop(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha = overlayOpacity * 0.88f),
+                                MaterialTheme.colorScheme.background.copy(alpha = overlayOpacity * 0.86f),
                                 MaterialTheme.colorScheme.background.copy(alpha = overlayOpacity),
-                                MaterialTheme.colorScheme.background.copy(alpha = (overlayOpacity + 0.22f).coerceAtMost(0.98f))
+                                MaterialTheme.colorScheme.background.copy(alpha = (overlayOpacity + 0.22f).coerceAtMost(0.97f))
                             )
                         )
                     )
             )
         }
 
-        // Futuristic global ambient radial aura & subtle screen-edge glow behind glass cards
-        if (visuals.isDark && visuals.preset != ThemePreset.MINIMAL && !visuals.batterySaverMode) {
+        if (visuals.isDark && !visuals.batterySaverMode) {
             val primaryGlow = visuals.primaryAccent
             val secondaryGlow = visuals.secondaryAccent
             val tertiaryGlow = visuals.tertiaryAccent
-            val globalBoost = if (visuals.globalGlowEnabled) 1.35f else 0.45f
-            val strength = (visuals.glowIntensity.coerceIn(0.1f, 1f) * globalBoost).coerceIn(0.1f, 1.35f)
+            val globalBoost = if (visuals.globalGlowEnabled) 1.3f else 0.45f
+            val strength = (visuals.glowIntensity.coerceIn(0.1f, 1f) * globalBoost).coerceIn(0.1f, 1.3f)
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawCircle(
                     brush = Brush.radialGradient(
@@ -241,24 +240,13 @@ fun ShinobiWallpaperBackdrop(
                 )
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(tertiaryGlow.copy(alpha = 0.10f * strength), Color.Transparent),
+                        colors = listOf(tertiaryGlow.copy(alpha = 0.09f * strength), Color.Transparent),
                         center = Offset(size.width * 0.78f, size.height * 0.84f),
                         radius = size.maxDimension * 0.38f
                     ),
                     radius = size.maxDimension * 0.38f,
                     center = Offset(size.width * 0.78f, size.height * 0.84f)
                 )
-                if (visuals.globalGlowEnabled) {
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                primaryGlow.copy(alpha = (0.07f * visuals.glowIntensity).coerceIn(0f, 0.10f)),
-                                Color.Transparent,
-                                secondaryGlow.copy(alpha = (0.06f * visuals.glowIntensity).coerceIn(0f, 0.09f))
-                            )
-                        )
-                    )
-                }
             }
         }
 
@@ -289,7 +277,7 @@ private fun ChakraParticleLayer(
         label = "particle_phase"
     )
     val seeds = remember {
-        List(18) { i ->
+        List(16) { i ->
             Triple(
                 (i * 0.167f + 0.05f) % 1f,
                 (i * 0.283f + 0.09f) % 1f,
@@ -328,6 +316,7 @@ fun HoloCard(
     modifier: Modifier = Modifier,
     accentColor: Color = LocalShinobiVisuals.current.primaryAccent,
     glassTier: GlassTier = GlassTier.STANDARD,
+    surfaceStyle: SurfaceStyle = LocalShinobiVisuals.current.defaultSurfaceStyle,
     glowActive: Boolean = false,
     onClick: (() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(16.dp),
@@ -336,6 +325,7 @@ fun HoloCard(
     val style = ThemeDesignSystem.glassStyle(
         accentColor = accentColor,
         tier = glassTier,
+        surfaceStyle = surfaceStyle,
         glowActive = glowActive
     )
 
@@ -350,6 +340,98 @@ fun HoloCard(
         shadowElevation = style.shadowElevation
     ) {
         Column(modifier = Modifier.padding(contentPadding), content = content)
+    }
+}
+
+@Composable
+fun NarutoHeroArtBanner(
+    @DrawableRes drawableRes: Int,
+    badgeLabel: String,
+    title: String,
+    subtitle: String,
+    accentColor: Color = LocalShinobiVisuals.current.primaryAccent,
+    height: Dp = 138.dp,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val visuals = LocalShinobiVisuals.current
+    val shape = RoundedCornerShape(22.dp)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(shape)
+            .border(1.2.dp, accentColor.copy(alpha = 0.55f), shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+    ) {
+        Image(
+            painter = painterResource(id = drawableRes),
+            contentDescription = title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            MidnightNavy.copy(alpha = if (visuals.isDark) 0.90f else 0.84f),
+                            MidnightNavy.copy(alpha = if (visuals.isDark) 0.64f else 0.56f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            MidnightNavy.copy(alpha = 0.72f)
+                        )
+                    )
+                )
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Surface(
+                color = accentColor.copy(alpha = 0.22f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.border(1.dp, accentColor.copy(alpha = 0.65f), RoundedCornerShape(8.dp))
+            ) {
+                Text(
+                    text = badgeLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accentColor,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+            Column(modifier = Modifier.fillMaxWidth(0.76f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = GlassWhite,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = GlassWhite.copy(alpha = 0.82f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
@@ -459,7 +541,6 @@ fun ChakraProgressRing(
                 )
             }
 
-            // Track ring
             drawArc(
                 color = accentColor.copy(alpha = 0.14f),
                 startAngle = -90f,
@@ -470,7 +551,6 @@ fun ChakraProgressRing(
                 style = Stroke(width = strokePx, cap = StrokeCap.Round)
             )
 
-            // Subtle rotating chakra energy shimmer when active
             if (isAnimating && visuals.animationsEnabled) {
                 drawArc(
                     brush = Brush.sweepGradient(
@@ -490,7 +570,6 @@ fun ChakraProgressRing(
                 )
             }
 
-            // Main progress arc glow underlay
             drawArc(
                 color = accentColor.copy(alpha = 0.22f * visuals.glowIntensity),
                 startAngle = -90f,
@@ -501,7 +580,6 @@ fun ChakraProgressRing(
                 style = Stroke(width = strokePx * 1.45f, cap = StrokeCap.Round)
             )
 
-            // Main crisp progress sweep
             drawArc(
                 brush = Brush.sweepGradient(
                     colors = listOf(accentColor, visuals.secondaryAccent, accentColor)
@@ -620,121 +698,6 @@ fun RankBadgeChip(rankCode: String, modifier: Modifier = Modifier) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun FloatingAiOrb(
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
-) {
-    val visuals = LocalShinobiVisuals.current
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    var offsetY by remember { mutableFloatStateOf(0f) }
-
-    val infinite = rememberInfiniteTransition(label = "orb_pulse")
-    val scale by infinite.animateFloat(
-        initialValue = if (visuals.animationsEnabled) 0.95f else 1f,
-        targetValue = if (visuals.animationsEnabled) 1.06f else 1f,
-        animationSpec = infiniteRepeatable(tween(1700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "orb_scale"
-    )
-    val ringRotation by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(6500, easing = LinearEasing), RepeatMode.Restart),
-        label = "orb_ring_rotation"
-    )
-
-    Box(
-        modifier = modifier
-            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    offsetX = (offsetX + dragAmount.x).coerceIn(-650f, 100f)
-                    offsetY = (offsetY + dragAmount.y).coerceIn(-900f, 120f)
-                }
-            }
-            .size(66.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        // Holographic orbital chakra ring + orbiting particles
-        if (visuals.animationsEnabled) {
-            Canvas(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .rotate(ringRotation)
-            ) {
-                val r = size.minDimension / 2f - 3.dp.toPx()
-                val c = Offset(size.width / 2f, size.height / 2f)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            HolographicPurple.copy(alpha = 0.30f),
-                            NarutoOrange.copy(alpha = 0.14f),
-                            Color.Transparent
-                        ),
-                        center = c,
-                        radius = size.minDimension / 2f
-                    ),
-                    radius = size.minDimension / 2f,
-                    center = c
-                )
-                drawArc(
-                    brush = Brush.sweepGradient(
-                        colors = listOf(ChakraCyan.copy(alpha = 0.85f), Color.Transparent, HolographicPurple.copy(alpha = 0.85f), Color.Transparent)
-                    ),
-                    startAngle = 0f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = Offset(c.x - r, c.y - r),
-                    size = Size(r * 2f, r * 2f),
-                    style = Stroke(width = 1.6.dp.toPx())
-                )
-                // Orbiting mini chakra nodes
-                drawCircle(
-                    color = NarutoOrange,
-                    radius = 2.6.dp.toPx(),
-                    center = Offset(c.x + r, c.y)
-                )
-                drawCircle(
-                    color = ChakraCyan,
-                    radius = 2.2.dp.toPx(),
-                    center = Offset(c.x - r, c.y)
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .size((54 * scale).dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            NarutoOrange,
-                            HolographicPurple
-                        )
-                    )
-                )
-                .border(1.5.dp, GlassWhite.copy(alpha = 0.72f), CircleShape)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
-                .testTag("floating_ai_orb"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.AutoAwesome,
-                contentDescription = "Open Shinobi AI Mentor (Hold for Quick Launcher)",
-                tint = GlassWhite,
-                modifier = Modifier.size(26.dp)
-            )
-        }
-    }
-}
-
 @Composable
 fun RankUpCelebrationOverlay(
     message: String?,
@@ -782,7 +745,7 @@ fun RankUpCelebrationOverlay(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.AutoAwesome,
+                        imageVector = Icons.Filled.MilitaryTech,
                         contentDescription = null,
                         tint = GoldRankS,
                         modifier = Modifier.size(26.dp)

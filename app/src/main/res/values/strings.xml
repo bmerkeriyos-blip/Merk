@@ -5,22 +5,7 @@
     <string name="nav_missions">Missions</string>
     <string name="nav_progress">Progress</string>
     <string name="nav_settings">Settings</string>
-    <string name="sign_in_google">Sign in with Google</string>
-    <string name="sign_out">Sign out</string>
-    <string name="ai_mentor_title">Shinobi Mentor AI</string>
-    <string name="timetable_scanner_title">AI Timetable Scanner</string>
     <string name="default_timezone">Africa/Addis_Ababa</string>
-    <string name="auth_title">SHINOBI PLANNER</string>
-    <string name="auth_subtitle">HIDDEN LEAF STUDY COMMAND</string>
-    <string name="auth_tagline">Sign in with Google to sync your missions across devices, or personalize your dojo before entering.</string>
-    <string name="auth_personalize_header">PERSONALIZE YOUR SHINOBI SCROLL</string>
-    <string name="auth_callsign_label">Shinobi Callsign (Optional)</string>
-    <string name="auth_callsign_placeholder">e.g. Naruto, Sakura, Shadow Scholar</string>
-    <string name="auth_track_label">Academy Track</string>
-    <string name="auth_theme_label">Village Chakra Theme</string>
-    <string name="auth_mentor_label">Choose Your AI Sensei</string>
-    <string name="auth_sign_in_cta">SIGN IN WITH GOOGLE</string>
-    <string name="auth_opening_scroll">OPENING SHINOBI CLOUD...</string>
-    <string name="auth_continue_offline">CONTINUE OFFLINE (LOCAL DOJO)</string>
-    <string name="auth_optional_note">Google Sign-In unlocks multi-device Firestore sync. AI Sensei, Focus Dojo, and Missions also work offline.</string>
+    <string name="dojo_title">SHINOBI PLANNER</string>
+    <string name="dojo_subtitle">HIDDEN LEAF STUDY COMMAND</string>
 </resources>

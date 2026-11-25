@@ -1,8 +1,6 @@
 package com.example.ui.progress
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,20 +18,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,9 +44,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
@@ -56,6 +56,7 @@ import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.SubtaskEntity
 import com.example.ui.components.GlassTier
 import com.example.ui.components.HoloCard
+import com.example.ui.components.NarutoHeroArtBanner
 import com.example.ui.components.RankBadgeChip
 import com.example.ui.components.XpProgressBar
 import com.example.ui.theme.ChakraCyan
@@ -64,14 +65,18 @@ import com.example.ui.theme.CrimsonAlert
 import com.example.ui.theme.GoldRankS
 import com.example.ui.theme.HolographicPurple
 import com.example.ui.theme.LocalShinobiVisuals
-import com.example.ui.theme.MidnightNavy
 import com.example.ui.theme.NarutoOrange
 import com.example.ui.theme.ShinobiGlassModifier
+import com.example.ui.theme.SurfaceStyle
 import com.example.ui.theme.ThemeDesignSystem
+import com.example.ui.theme.VermilionTorii
+import com.example.ui.theme.WashiGold
 import com.example.viewmodel.PlannerUiState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
+import java.util.Locale
 
 private val RANK_LADDER = listOf(
     1 to "Academy Student",
@@ -81,6 +86,11 @@ private val RANK_LADDER = listOf(
     25 to "Jonin Master",
     35 to "Grand Kage"
 )
+
+private enum class StatsWindow(val label: String) {
+    WEEKLY("Weekly (7d)"),
+    MONTHLY("Monthly (4w)")
+}
 
 @Composable
 fun ProgressScreen(
@@ -95,7 +105,8 @@ fun ProgressScreen(
     }
     val todayIso = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-    // Upcoming exams & deadlines
+    var statsWindow by remember { mutableStateOf(StatsWindow.WEEKLY) }
+
     val upcomingExams = remember(uiState.tasks, todayIso) {
         uiState.tasks.filter {
             !it.completed &&
@@ -104,7 +115,6 @@ fun ProgressScreen(
         }.sortedBy { it.dateIso }
     }
 
-    // Weekly Intelligence metrics
     val totalFocusMins = remember(uiState.sessions) { uiState.sessions.sumOf { it.durationMinutes } }
     val totalTasks = uiState.tasks.size
     val completedTasks = uiState.tasks.count { it.completed }
@@ -118,7 +128,28 @@ fun ProgressScreen(
         (taskRate + focusPart + streakPart).toInt().coerceIn(0, 100)
     }
 
-    // Subject balance analysis
+    // Weekly (7 days) vs Monthly (4 weeks) mission completion data
+    val chartBuckets = remember(uiState.tasks, today, statsWindow) {
+        if (statsWindow == StatsWindow.WEEKLY) {
+            (6 downTo 0).map { offset ->
+                val d = today.minusDays(offset.toLong())
+                val iso = d.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val count = uiState.tasks.count { it.dateIso == iso && it.completed }
+                d.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.ENGLISH) to count
+            }
+        } else {
+            (3 downTo 0).map { weekOffset ->
+                val endDay = today.minusDays(weekOffset.toLong() * 7L)
+                val startDay = endDay.minusDays(6)
+                val startIso = startDay.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val endIso = endDay.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val count = uiState.tasks.count { it.completed && it.dateIso in startIso..endIso }
+                val label = "W${4 - weekOffset}"
+                label to count
+            }
+        }
+    }
+
     val subjectMinutes = remember(uiState.sessions, uiState.tasks) {
         val map = mutableMapOf<String, Int>()
         uiState.sessions.forEach { s ->
@@ -146,48 +177,22 @@ fun ProgressScreen(
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(114.dp)
-                    .clip(RoundedCornerShape(18.dp))
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.img_scroll_banner),
-                    contentDescription = "Shinobi Training Scroll",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    MidnightNavy.copy(alpha = 0.72f),
-                                    Color.Transparent,
-                                    MidnightNavy.copy(alpha = 0.55f)
-                                )
-                            )
-                        )
-                        .padding(14.dp),
-                    contentAlignment = Alignment.BottomStart
-                ) {
-                    Text(
-                        text = "${rankInfo.title.uppercase()} • LEVEL ${rankInfo.level}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = GoldRankS,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            NarutoHeroArtBanner(
+                drawableRes = if (statsWindow == StatsWindow.WEEKLY) R.drawable.img_naruto_sage_mode else R.drawable.img_itachi_uchiha,
+                badgeLabel = "SENJUTSU MASTERY",
+                title = "${rankInfo.title.uppercase()} • LEVEL ${rankInfo.level}",
+                subtitle = "${profile?.xp ?: 0} Total XP • Best Streak: ${profile?.longestStreak ?: 0} days",
+                accentColor = WashiGold,
+                height = 128.dp
+            )
         }
 
-        // RPG Rank Progression Hero Card
+        // Dark Japanese RPG Rank Progression Card
         item {
             HoloCard(
-                accentColor = NarutoOrange,
+                accentColor = WashiGold,
                 glassTier = GlassTier.HERO,
+                surfaceStyle = SurfaceStyle.DARK_JAPANESE,
                 glowActive = true
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -209,7 +214,7 @@ fun ProgressScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${profile?.xp ?: 0} Total XP • Best Streak: ${profile?.longestStreak ?: 0} days",
+                            text = "${rankInfo.currentLevelXp} / ${rankInfo.nextLevelXpRequired} XP to next rank",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -218,7 +223,7 @@ fun ProgressScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 XpProgressBar(
                     progress = rankInfo.progressFraction,
-                    startColor = NarutoOrange,
+                    startColor = VermilionTorii,
                     endColor = GoldRankS,
                     height = 9.dp
                 )
@@ -246,25 +251,100 @@ fun ProgressScreen(
             }
         }
 
-        // Weekly Intelligence Report + Neon Gradient Chart
+        // Weekly & Monthly Training Report + Charts
         item {
-            HoloCard(accentColor = ChakraCyan) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Timeline, contentDescription = null, tint = ChakraCyan)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "WEEKLY TRAINING REPORT",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = ChakraCyan,
-                        fontWeight = FontWeight.Bold
-                    )
+            HoloCard(accentColor = ChakraCyan, surfaceStyle = SurfaceStyle.DARK_JAPANESE) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Timeline, contentDescription = null, tint = ChakraCyan)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "PRODUCTIVITY STATS",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = ChakraCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatsWindow.entries.forEach { window ->
+                        FilterChip(
+                            selected = statsWindow == window,
+                            onClick = { statsWindow = window },
+                            label = { Text(window.label) },
+                            modifier = Modifier.testTag("stats_window_${window.name.lowercase()}")
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatMiniBlock("Productivity", "$productivityScore/100", ChakraCyan, Modifier.weight(1f))
                     StatMiniBlock("Completed", "$completedTasks", ChakraGreen, Modifier.weight(1f))
                     StatMiniBlock("Overdue", "$missedPastTasks", CrimsonAlert, Modifier.weight(1f))
-                    StatMiniBlock("Focus Hrs", String.format("%.1fh", totalFocusMins / 60f), NarutoOrange, Modifier.weight(1f))
+                    StatMiniBlock("Focus Hrs", String.format(Locale.ENGLISH, "%.1fh", totalFocusMins / 60f), NarutoOrange, Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                val maxBucket = (chartBuckets.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (statsWindow == StatsWindow.WEEKLY) "Daily Missions Cleared (Last 7 Days)" else "Weekly Missions Cleared (Last 4 Weeks)",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Text(
+                        text = "${chartBuckets.sumOf { it.second }} total",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = WashiGold,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(92.dp)
+                ) {
+                    val slotW = size.width / chartBuckets.size
+                    val barW = (slotW * 0.45f).coerceAtMost(32.dp.toPx())
+                    chartBuckets.forEachIndexed { idx, (_, count) ->
+                        val frac = count.toFloat() / maxBucket.toFloat()
+                        val h = (size.height * 0.85f * frac).coerceAtLeast(8.dp.toPx())
+                        val x = idx * slotW + (slotW - barW) / 2f
+                        val y = size.height - h
+                        drawRoundRect(
+                            color = ChakraCyan.copy(alpha = 0.14f),
+                            topLeft = Offset(x, 0f),
+                            size = Size(barW, size.height),
+                            cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx())
+                        )
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                colors = if (count > 0) listOf(WashiGold, VermilionTorii) else listOf(ChakraCyan.copy(alpha = 0.25f), ChakraCyan.copy(alpha = 0.12f))
+                            ),
+                            topLeft = Offset(x, y),
+                            size = Size(barW, h),
+                            cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx())
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                    chartBuckets.forEach { (label, count) ->
+                        Text(
+                            text = "$label ($count)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 if (subjectMinutes.isNotEmpty()) {
@@ -314,7 +394,7 @@ fun ProgressScreen(
 
         // Exam Countdowns & Revision Plan Generator
         item {
-            HoloCard(accentColor = CrimsonAlert) {
+            HoloCard(accentColor = CrimsonAlert, surfaceStyle = SurfaceStyle.DARK_JAPANESE) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.School, contentDescription = null, tint = CrimsonAlert)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -389,7 +469,7 @@ fun ProgressScreen(
                                     },
                                     modifier = Modifier.testTag("generate_revision_button_${exam.id}")
                                 ) {
-                                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Filled.EventNote, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("3-Day Plan")
                                 }
@@ -402,7 +482,7 @@ fun ProgressScreen(
 
         // Achievements Grid
         item {
-            HoloCard(accentColor = HolographicPurple) {
+            HoloCard(accentColor = WashiGold, surfaceStyle = SurfaceStyle.DARK_JAPANESE) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = GoldRankS)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -466,7 +546,12 @@ fun ProgressScreen(
                 }
             }
             items(uiState.history.take(8), key = { it.id }) { h ->
-                HoloCard(accentColor = ChakraGreen, glassTier = GlassTier.SUBTLE, contentPadding = PaddingValues(12.dp)) {
+                HoloCard(
+                    accentColor = ChakraGreen,
+                    glassTier = GlassTier.SUBTLE,
+                    surfaceStyle = SurfaceStyle.DARK_JAPANESE,
+                    contentPadding = PaddingValues(12.dp)
+                ) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(h.taskTitle, fontWeight = FontWeight.Medium)
@@ -494,6 +579,7 @@ private fun StatMiniBlock(
     val style = ThemeDesignSystem.glassStyle(
         accentColor = color,
         tier = GlassTier.SUBTLE,
+        surfaceStyle = SurfaceStyle.DARK_JAPANESE,
         cornerRadius = ThemeDesignSystem.CompactCornerRadius,
         tintColor = color
     )
