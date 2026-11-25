@@ -409,11 +409,11 @@ fun OnboardingScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Filled.MusicNote, contentDescription = null, tint = JadeEmerald)
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text("Original Audio & Focus Dojo Ready", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
+                                Text("Custom Music & Audio Dojo Ready", style = MaterialTheme.typography.titleMedium, color = CyberTextPrimary)
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Includes 3 built-in original focus synth tracks, shinobi sound effects, and SAF import for your own MP3/M4A playlists and custom wallpapers.",
+                                text = "Includes shinobi sound effects, voice briefings, and SAF import for your own MP3/M4A songs and custom wallpapers.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = CyberTextSecondary
                             )

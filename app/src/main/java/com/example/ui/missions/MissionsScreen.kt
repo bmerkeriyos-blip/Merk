@@ -371,25 +371,37 @@ private fun FocusDojoTab(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = audioState.currentTitle,
+                            text = if (audioState.trackCount == 0) "No Songs Added" else audioState.currentTitle,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1
                         )
                         Text(
-                            text = audioState.currentArtist,
+                            text = if (audioState.trackCount == 0) {
+                                "Import your own songs in Settings → Music Studio"
+                            } else {
+                                audioState.currentArtist
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = onToggleMusic, modifier = Modifier.size(48.dp).testTag("dojo_music_play_pause")) {
+                    IconButton(
+                        onClick = onToggleMusic,
+                        enabled = audioState.trackCount > 0,
+                        modifier = Modifier.size(48.dp).testTag("dojo_music_play_pause")
+                    ) {
                         Icon(
                             imageVector = if (audioState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = "Play or Pause Focus Music",
-                            tint = HolographicPurple
+                            tint = if (audioState.trackCount > 0) HolographicPurple else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = onNextTrack, modifier = Modifier.size(48.dp)) {
+                    IconButton(
+                        onClick = onNextTrack,
+                        enabled = audioState.trackCount > 0,
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(Icons.Filled.SkipNext, contentDescription = "Next Track")
                     }
                 }

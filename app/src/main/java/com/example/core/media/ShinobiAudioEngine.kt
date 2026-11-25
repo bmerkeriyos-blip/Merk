@@ -16,18 +16,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.util.Locale
-import kotlin.math.PI
-import kotlin.math.exp
-import kotlin.math.sin
 
 data class AudioPlaybackState(
     val isPlaying: Boolean = false,
-    val currentTitle: String = "No Track Loaded",
-    val currentArtist: String = "Shinobi Synth",
+    val currentTitle: String = "No Songs Added",
+    val currentArtist: String = "Import Your Music",
     val currentTrackIndex: Int = 0,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_ALL,
@@ -96,8 +90,8 @@ class ShinobiAudioEngine(private val context: Context) {
         val track = loadedTracks.getOrNull(idx)
         _playbackState.value = AudioPlaybackState(
             isPlaying = p.isPlaying,
-            currentTitle = track?.title ?: p.mediaMetadata.title?.toString() ?: "Shinobi Synth",
-            currentArtist = track?.artist ?: "Original Focus Audio",
+            currentTitle = track?.title ?: p.mediaMetadata.title?.toString() ?: "No Songs Added",
+            currentArtist = track?.artist ?: "Your Study Playlist",
             currentTrackIndex = idx.coerceAtLeast(0),
             shuffleEnabled = p.shuffleModeEnabled,
             repeatMode = p.repeatMode,
@@ -119,35 +113,22 @@ class ShinobiAudioEngine(private val context: Context) {
         }
     }
 
-    suspend fun ensureBuiltInTracks(userId: String): List<MusicTrackEntity> = withContext(Dispatchers.IO) {
-        val dir = File(context.filesDir, "shinobi_audio").apply { mkdirs() }
-        val specs = listOf(
-            Triple("synth_dojo_$userId", "Hidden Village Dawn (Original)", 220.0),
-            Triple("synth_rain_$userId", "Midnight Hidden Village (Original)", 196.0),
-            Triple("synth_pulse_$userId", "Chakra Flow Focus (Original)", 246.94)
-        )
-        specs.mapIndexed { idx, (id, title, baseFreq) ->
-            val file = File(dir, "$id.wav")
-            if (!file.exists()) {
-                writeAmbientSynthWav(file, baseFreq, durationSeconds = 12)
+    suspend fun purgeLegacyBuiltInAudioFiles() = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = File(context.filesDir, "shinobi_audio")
+            if (dir.exists()) {
+                dir.deleteRecursively()
             }
-            MusicTrackEntity(
-                id = id,
-                userId = userId,
-                title = title,
-                artist = "Shinobi Original Synth",
-                uriString = Uri.fromFile(file).toString(),
-                durationMs = 12_000L,
-                motivational = false,
-                builtInSynth = true,
-                sortOrder = idx
-            )
         }
     }
 
     fun setPlaylist(tracks: List<MusicTrackEntity>, autoPlay: Boolean = false) {
         loadedTracks = tracks
         if (tracks.isEmpty()) {
+            runCatching {
+                player?.stop()
+                player?.clearMediaItems()
+            }
             _playbackState.value = AudioPlaybackState()
             return
         }
@@ -304,52 +285,5 @@ class ShinobiAudioEngine(private val context: Context) {
             tts?.shutdown()
         }
         tts = null
-    }
-
-    private fun writeAmbientSynthWav(outFile: File, baseFreq: Double, durationSeconds: Int) {
-        val sampleRate = 22050
-        val numSamples = sampleRate * durationSeconds
-        val pcm = ByteArray(numSamples * 2)
-        val pentatonic = doubleArrayOf(1.0, 1.125, 1.25, 1.5, 1.667, 2.0)
-        for (i in 0 until numSamples) {
-            val t = i.toDouble() / sampleRate
-            val noteIndex = ((t / 2.0).toInt()) % pentatonic.size
-            val localT = t % 2.0
-            val chimeEnv = exp(-localT * 2.2)
-            val pad = sin(2.0 * PI * (baseFreq * 0.5) * t) * 0.18 +
-                sin(2.0 * PI * (baseFreq * 0.75) * t) * 0.12
-            val chime = sin(2.0 * PI * (baseFreq * pentatonic[noteIndex]) * t) * chimeEnv * 0.25
-            val fadeEdge = when {
-                t < 0.2 -> t / 0.2
-                t > durationSeconds - 0.2 -> (durationSeconds - t) / 0.2
-                else -> 1.0
-            }.coerceIn(0.0, 1.0)
-            val s = ((pad + chime) * fadeEdge * Short.MAX_VALUE).toInt()
-                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-            pcm[i * 2] = (s and 0xFF).toByte()
-            pcm[i * 2 + 1] = ((s shr 8) and 0xFF).toByte()
-        }
-        writeWavFile(outFile, pcm, sampleRate)
-    }
-
-    private fun writeWavFile(file: File, pcmData: ByteArray, sampleRate: Int) {
-        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
-        header.put("RIFF".toByteArray())
-        header.putInt(36 + pcmData.size)
-        header.put("WAVE".toByteArray())
-        header.put("fmt ".toByteArray())
-        header.putInt(16)
-        header.putShort(1) // PCM
-        header.putShort(1) // Mono
-        header.putInt(sampleRate)
-        header.putInt(sampleRate * 2)
-        header.putShort(2)
-        header.putShort(16)
-        header.put("data".toByteArray())
-        header.putInt(pcmData.size)
-        FileOutputStream(file).use { out ->
-            out.write(header.array())
-            out.write(pcmData)
-        }
     }
 }

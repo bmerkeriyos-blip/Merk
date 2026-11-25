@@ -2,6 +2,7 @@ package com.example
 
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
@@ -37,13 +38,17 @@ import com.example.core.ai.ParsedAiCommand
 import com.example.core.ai.ShinobiAiBackend
 import com.example.core.ai.StudyStance
 import com.example.core.common.ShinobiTimeUtil
+import com.example.core.firebase.SelectedAppCheckMode
+import com.example.core.firebase.configureAppCheck
 import com.example.core.media.AudioPlaybackState
+import com.example.core.media.ShinobiAudioEngine
 import com.example.core.media.ShinobiSfx
 import com.example.core.media.ShinobiSoundEffectManager
 import com.example.core.notifications.ReminderScheduler
 import com.example.core.notifications.ShinobiNotificationManager
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ChatSessionEntity
+import com.example.data.local.MusicTrackEntity
 import com.example.data.local.PlannerTaskEntity
 import com.example.data.local.ShinobiDatabase
 import com.example.data.local.SubjectEntity
@@ -754,6 +759,66 @@ class ExampleRobolectricTest {
         ).toList()
         assertEquals(listOf("Fallback balanced reasoning!"), deepReply)
         assertEquals(listOf(AiMentorService.DEEP_REASONING_MODEL, AiMentorService.PRIMARY_MODEL), deepFallbackBackend.calledModels)
+    }
+
+    @Test
+    fun `app check configures harness token synchronously and falls back cleanly on test runtime`() {
+        val initialMode = configureAppCheck(context, null)
+        assertEquals(SelectedAppCheckMode.DEBUG_EMULATOR_OR_TEST, initialMode)
+
+        val tokenIntent = Intent().putExtra("FIREBASE_APPCHECK_DEBUG_TOKEN", "test-debug-token-123")
+        val intentMode = configureAppCheck(context, tokenIntent)
+        assertEquals(SelectedAppCheckMode.DEBUG_HARNESS_INTENT, intentMode)
+
+        val cachedMode = configureAppCheck(context, null)
+        assertEquals(SelectedAppCheckMode.DEBUG_HARNESS_CACHED, cachedMode)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `audio playlist purges legacy built in theme songs and keeps only user imported tracks`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val audioEngine = ShinobiAudioEngine(context)
+        try {
+            val repo = ShinobiRepository(context, db, remote = null)
+            val uid = ShinobiRepository.LOCAL_GUEST_UID
+            repo.upsertTracks(
+                listOf(
+                    MusicTrackEntity(
+                        id = "synth_dojo_$uid",
+                        userId = uid,
+                        title = "Hidden Village Dawn (Original)",
+                        uriString = "file:///tmp/synth.wav",
+                        builtInSynth = true,
+                        sortOrder = 0
+                    ),
+                    MusicTrackEntity(
+                        id = "user_custom_1",
+                        userId = uid,
+                        title = "My Own Track",
+                        uriString = "content://media/external/audio/1",
+                        builtInSynth = false,
+                        sortOrder = 1
+                    )
+                )
+            )
+            val vm = com.example.viewmodel.PlannerViewModel(repo, audioEngine, uid)
+            vm.initializeSession(null)
+            var attempts = 0
+            while (repo.observeTracks(uid).first().any { it.builtInSynth } && attempts < 100) {
+                Thread.sleep(20)
+                advanceUntilIdle()
+                attempts++
+            }
+            val remaining = repo.observeTracks(uid).first()
+            assertEquals(1, remaining.size)
+            assertEquals("My Own Track", remaining.first().title)
+            assertEquals(1, audioEngine.playbackState.value.trackCount)
+        } finally {
+            audioEngine.release()
+            Dispatchers.resetMain()
+        }
     }
 }
 

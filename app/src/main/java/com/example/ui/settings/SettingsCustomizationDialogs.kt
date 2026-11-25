@@ -1,6 +1,7 @@
 package com.example.ui.settings
 
 import android.content.Intent
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -249,7 +250,15 @@ fun MusicStudioDialog(
             runCatching {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            val label = uri.lastPathSegment?.substringAfterLast("/") ?: "Custom Track"
+            val displayName = runCatching {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                }
+            }.getOrNull()
+            val label = (displayName ?: uri.lastPathSegment?.substringAfterLast("/"))
+                ?.substringBeforeLast(".")
+                ?.takeIf { it.isNotBlank() }
+                ?: "Custom Track"
             onAddTrack(label, uri.toString(), false)
         }
     }
@@ -361,12 +370,18 @@ fun MusicStudioDialog(
                     Text("Import MP3 / M4A / WAV (SAF)")
                 }
 
-                tracks.forEachIndexed { idx, track ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { onPlayTrackAt(idx) }, modifier = Modifier.weight(1f)) {
-                            Text(track.title, maxLines = 1)
-                        }
-                        if (!track.builtInSynth) {
+                if (tracks.isEmpty()) {
+                    Text(
+                        text = "No songs added yet. Tap above to import your own MP3, M4A, or WAV tracks.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    tracks.forEachIndexed { idx, track ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            TextButton(onClick = { onPlayTrackAt(idx) }, modifier = Modifier.weight(1f)) {
+                                Text(track.title, maxLines = 1)
+                            }
                             IconButton(onClick = { onDeleteTrack(track.id) }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Delete Track", tint = CrimsonAlert)
                             }

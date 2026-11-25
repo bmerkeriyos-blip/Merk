@@ -110,17 +110,15 @@ class PlannerViewModel(
         viewModelScope.launch {
             repository.ensureUserInitialized(firebaseUser)
             val existingTracks = repository.observeTracks(currentUserId).first()
-            if (existingTracks.isEmpty()) {
-                val builtIn = audioEngine.ensureBuiltInTracks(currentUserId)
-                repository.upsertTracks(builtIn)
-                audioEngine.setPlaylist(builtIn, autoPlay = false)
-            } else {
-                audioEngine.setPlaylist(existingTracks, autoPlay = false)
-            }
+            val legacyBuiltIn = existingTracks.filter { it.builtInSynth }
+            legacyBuiltIn.forEach { repository.deleteTrack(it.id) }
+            audioEngine.purgeLegacyBuiltInAudioFiles()
+            val userTracks = existingTracks.filterNot { it.builtInSynth }
+            audioEngine.setPlaylist(userTracks, autoPlay = false)
             val currentSettings = repository.observeSettings(currentUserId).first()
                 ?: UserSettingsEntity(userId = currentUserId)
             applyAudioVolumes(currentSettings)
-            if (currentSettings.musicOnOpen) {
+            if (currentSettings.musicOnOpen && userTracks.isNotEmpty()) {
                 audioEngine.playIfReady()
             }
         }
