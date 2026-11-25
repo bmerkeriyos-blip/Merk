@@ -43,6 +43,8 @@ import com.example.ui.theme.*
 @Composable
 fun OnboardingScreen(
     profile: UserProfileEntity?,
+    initialThemePreset: String = ThemePreset.NARUTO.name,
+    initialAiPersonality: String = AiPersonality.MENTOR.code,
     onComplete: (
         displayName: String,
         university: String,
@@ -63,8 +65,8 @@ fun OnboardingScreen(
     var timezoneId by remember { mutableStateOf(ShinobiTimeUtil.DEFAULT_TIMEZONE_ID) }
     var use24HourClock by remember { mutableStateOf(false) }
     var showEthiopianTime by remember { mutableStateOf(true) }
-    var selectedPreset by remember { mutableStateOf(ThemePreset.NARUTO.name) }
-    var selectedPersonality by remember { mutableStateOf(AiPersonality.MENTOR.code) }
+    var selectedPreset by remember(initialThemePreset) { mutableStateOf(initialThemePreset) }
+    var selectedPersonality by remember(initialAiPersonality) { mutableStateOf(initialAiPersonality) }
     var notifPermissionResult by remember { mutableStateOf<String?>(null) }
 
     val notifLauncher = rememberLauncherForActivityResult(

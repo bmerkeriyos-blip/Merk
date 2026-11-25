@@ -8,6 +8,8 @@ import com.example.core.common.RecurrenceRule
 import com.example.core.notifications.ReminderScheduler
 import com.example.data.local.*
 import com.example.data.remote.*
+import com.example.ui.auth.ShinobiLoginPersonalization
+import com.example.ui.theme.ThemePreset
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
@@ -68,21 +70,28 @@ class ShinobiRepository(
     fun observeScans(uid: String): Flow<List<TimetableScanEntity>> = notesDao.observeScans(uid)
     fun observeSettings(uid: String): Flow<UserSettingsEntity?> = settingsDao.observeSettings(uid)
 
-    suspend fun ensureUserInitialized(firebaseUser: FirebaseUser?) {
+    suspend fun ensureUserInitialized(
+        firebaseUser: FirebaseUser?,
+        loginPersonalization: ShinobiLoginPersonalization? = null
+    ) {
         val uid = firebaseUser?.uid ?: LOCAL_GUEST_UID
+        val customCallsign = loginPersonalization?.callsign?.trim()?.takeIf { it.isNotBlank() }
+        val chosenTrack = loginPersonalization?.academicTrack?.trim()?.takeIf { it.isNotBlank() }
+
         val existingProfile = profileDao.getProfileOnce(uid)
         if (existingProfile == null) {
             val remoteProfile = if (firebaseUser != null && remote != null) remote.fetchUserProfile(uid).getOrNull() else null
             val newProfile = if (remoteProfile != null) {
                 UserProfileEntity(
                     uid = uid,
-                    displayName = remoteProfile.displayName.ifBlank { firebaseUser?.displayName ?: "Shinobi Scholar" },
+                    displayName = customCallsign
+                        ?: remoteProfile.displayName.ifBlank { firebaseUser?.displayName ?: "Shinobi Scholar" },
                     username = remoteProfile.username.ifBlank { "shinobi_${uid.take(6)}" },
                     email = remoteProfile.email.ifBlank { firebaseUser?.email ?: "" },
                     photoUrl = remoteProfile.photoUrl ?: firebaseUser?.photoUrl?.toString().orEmpty(),
                     university = remoteProfile.university,
                     department = remoteProfile.department,
-                    academicYear = remoteProfile.academicYear,
+                    academicYear = chosenTrack ?: remoteProfile.academicYear,
                     xp = remoteProfile.xp.toInt(),
                     level = remoteProfile.level.toInt().coerceAtLeast(1),
                     ninjaTitle = remoteProfile.ninjaTitle,
@@ -94,10 +103,11 @@ class ShinobiRepository(
             } else if (firebaseUser != null) {
                 UserProfileEntity(
                     uid = uid,
-                    displayName = firebaseUser.displayName ?: "Shinobi Scholar",
+                    displayName = customCallsign ?: firebaseUser.displayName ?: "Shinobi Scholar",
                     username = (firebaseUser.email?.substringBefore("@") ?: "shinobi_${uid.take(5)}"),
                     email = firebaseUser.email ?: "",
                     photoUrl = firebaseUser.photoUrl?.toString().orEmpty(),
+                    academicYear = chosenTrack ?: "",
                     xp = 0,
                     level = 1,
                     ninjaTitle = RankProgression.titleForLevel(1),
@@ -106,10 +116,11 @@ class ShinobiRepository(
             } else {
                 UserProfileEntity(
                     uid = LOCAL_GUEST_UID,
-                    displayName = "Shinobi Scholar",
+                    displayName = customCallsign ?: "Shinobi Scholar",
                     username = "local_shinobi",
                     email = "",
                     photoUrl = "",
+                    academicYear = chosenTrack ?: "",
                     xp = 0,
                     level = 1,
                     ninjaTitle = RankProgression.titleForLevel(1),
@@ -117,13 +128,47 @@ class ShinobiRepository(
                 )
             }
             profileDao.upsertProfile(newProfile)
-            if (remoteProfile == null && firebaseUser != null) {
+            if ((remoteProfile == null || loginPersonalization != null) && firebaseUser != null) {
                 syncProfileToCloud(newProfile)
+            }
+        } else if (loginPersonalization != null) {
+            val updatedProfile = existingProfile.copy(
+                displayName = customCallsign ?: existingProfile.displayName,
+                academicYear = chosenTrack ?: existingProfile.academicYear,
+                updatedAtEpochMs = System.currentTimeMillis()
+            )
+            if (updatedProfile != existingProfile) {
+                saveProfile(updatedProfile)
             }
         }
 
-        if (settingsDao.getSettingsOnce(uid) == null) {
-            settingsDao.upsertSettings(UserSettingsEntity(userId = uid))
+        val existingSettings = settingsDao.getSettingsOnce(uid)
+        val accentKeyForPreset = when (loginPersonalization?.themePreset) {
+            ThemePreset.CYBER_SHINOBI -> "CYAN"
+            ThemePreset.ACADEMIC -> "GOLD"
+            ThemePreset.MINIMAL -> "EMERALD"
+            else -> "ORANGE"
+        }
+        if (existingSettings == null) {
+            val initialSettings = if (loginPersonalization != null) {
+                UserSettingsEntity(
+                    userId = uid,
+                    themePreset = loginPersonalization.themePreset.name,
+                    accentColorKey = accentKeyForPreset,
+                    aiPersonality = loginPersonalization.aiPersonality.code
+                )
+            } else {
+                UserSettingsEntity(userId = uid)
+            }
+            settingsDao.upsertSettings(initialSettings)
+        } else if (loginPersonalization != null) {
+            saveSettings(
+                existingSettings.copy(
+                    themePreset = loginPersonalization.themePreset.name,
+                    accentColorKey = accentKeyForPreset,
+                    aiPersonality = loginPersonalization.aiPersonality.code
+                )
+            )
         }
 
         if (historyDao.getAchievementsOnce(uid).isEmpty()) {

@@ -218,6 +218,8 @@ fun ShinobiAppShell(
             profile != null && !profile.onboardingCompleted -> {
                 OnboardingScreen(
                     profile = profile,
+                    initialThemePreset = settings.themePreset,
+                    initialAiPersonality = settings.aiPersonality,
                     onComplete = { name, univ, dept, year, tz, use24h, showEthTime, pName, aiPers ->
                         plannerViewModel.completeOnboarding(
                             displayName = name,

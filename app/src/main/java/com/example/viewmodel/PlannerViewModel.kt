@@ -13,6 +13,7 @@ import com.example.data.local.*
 import com.example.data.repository.ShinobiRepository
 import com.example.data.repository.TaskConflict
 import com.example.data.repository.TimeSlot
+import com.example.ui.auth.ShinobiLoginPersonalization
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -106,9 +107,12 @@ class PlannerViewModel(
         initialValue = PlannerUiState()
     )
 
-    fun initializeSession(firebaseUser: FirebaseUser?) {
+    fun initializeSession(
+        firebaseUser: FirebaseUser?,
+        loginPersonalization: ShinobiLoginPersonalization? = null
+    ) {
         viewModelScope.launch {
-            repository.ensureUserInitialized(firebaseUser)
+            repository.ensureUserInitialized(firebaseUser, loginPersonalization)
             val existingTracks = repository.observeTracks(currentUserId).first()
             val legacyBuiltIn = existingTracks.filter { it.builtInSynth }
             legacyBuiltIn.forEach { repository.deleteTrack(it.id) }

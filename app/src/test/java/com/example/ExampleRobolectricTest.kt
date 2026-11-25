@@ -57,6 +57,9 @@ import com.example.data.local.UserProfileEntity
 import com.example.data.local.UserSettingsEntity
 import com.example.data.repository.ShinobiRepository
 import com.example.ui.ai.AiMentorScreen
+import com.example.ui.auth.AuthScreen
+import com.example.ui.auth.ShinobiLoginPersonalization
+import com.example.ui.auth.ShinobiLoginPersonalizationStore
 import com.example.ui.components.GlassTier
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.schedule.TaskEditorModalSheet
@@ -64,6 +67,7 @@ import com.example.ui.settings.SettingsScreen
 import com.example.ui.theme.NarutoOrange
 import com.example.ui.theme.ShinobiGlassModifier
 import com.example.ui.theme.ShinobiPlannerTheme
+import com.example.ui.theme.ThemePreset
 import com.example.viewmodel.AiChatUiState
 import com.example.viewmodel.AiViewModel
 import com.example.viewmodel.FocusTimerUiState
@@ -993,6 +997,68 @@ class Android12CompatibilityTest {
                 assertTrue(c.moveToFirst())
                 assertEquals(1, c.getInt(0))
             }
+        }
+    }
+
+    @Test
+    fun `auth screen lets user personalize callsign chakra theme and AI Sensei and persists choices`() {
+        var skipped = false
+        composeRule.setContent {
+            ShinobiPlannerTheme {
+                AuthScreen(
+                    onAuthSuccess = {},
+                    onSkipForNow = { skipped = true }
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("auth_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("google_sign_in_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("skip_sign_in_button").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("auth_callsign_input").performScrollTo().performTextInput("Itachi")
+        composeRule.onNodeWithTag("auth_theme_cyber_shinobi").performScrollTo().performClick()
+        composeRule.onNodeWithTag("auth_mentor_strict").performScrollTo().performClick()
+        composeRule.onNodeWithTag("auth_track_jonin").performScrollTo().performClick()
+        composeRule.onNodeWithTag("skip_sign_in_button").performClick()
+
+        assertTrue(skipped)
+        val saved = ShinobiLoginPersonalizationStore.consumePending(context)
+        assertNotNull(saved)
+        assertEquals("Itachi", saved?.callsign)
+        assertEquals(ThemePreset.CYBER_SHINOBI, saved?.themePreset)
+        assertEquals(AiPersonality.STRICT, saved?.aiPersonality)
+        assertEquals("Jonin • Year 3", saved?.academicTrack)
+    }
+
+    @Test
+    fun `repository ensureUserInitialized applies shinobi login personalization to profile and settings`() = runTest {
+        val localDb = Room.inMemoryDatabaseBuilder(context, ShinobiDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val repo = ShinobiRepository(context, localDb, remote = null)
+            val personalization = ShinobiLoginPersonalization(
+                callsign = "Minato Namikaze",
+                themePreset = ThemePreset.CYBER_SHINOBI,
+                aiPersonality = AiPersonality.PROFESSIONAL,
+                academicTrack = "ANBU • Exam Prep"
+            )
+
+            repo.ensureUserInitialized(firebaseUser = null, loginPersonalization = personalization)
+
+            val profile = localDb.userProfileDao().getProfileOnce(ShinobiRepository.LOCAL_GUEST_UID)
+            val settings = localDb.userSettingsDao().getSettingsOnce(ShinobiRepository.LOCAL_GUEST_UID)
+
+            assertNotNull(profile)
+            assertNotNull(settings)
+            assertEquals("Minato Namikaze", profile?.displayName)
+            assertEquals("ANBU • Exam Prep", profile?.academicYear)
+            assertEquals(ThemePreset.CYBER_SHINOBI.name, settings?.themePreset)
+            assertEquals("CYAN", settings?.accentColorKey)
+            assertEquals(AiPersonality.PROFESSIONAL.code, settings?.aiPersonality)
+        } finally {
+            localDb.close()
         }
     }
 }

@@ -21,6 +21,7 @@ import com.example.data.local.ShinobiDatabase
 import com.example.data.remote.FirestoreSyncRepository
 import com.example.data.repository.ShinobiRepository
 import com.example.ui.auth.AuthScreen
+import com.example.ui.auth.ShinobiLoginPersonalizationStore
 import com.example.ui.auth.onGoogleSignInClicked
 import com.example.ui.auth.signOutUser
 import com.example.ui.navigation.ShinobiAppShell
@@ -143,7 +144,8 @@ private fun ShinobiPlannerRoot(audioEngine: ShinobiAudioEngine) {
             )
 
             LaunchedEffect(uid, isSignedInWithGoogle) {
-                plannerViewModel.initializeSession(activeUser)
+                val pendingPersonalization = ShinobiLoginPersonalizationStore.consumePending(context.applicationContext)
+                plannerViewModel.initializeSession(activeUser, pendingPersonalization)
                 if (isSignedInWithGoogle) {
                     runCatching { CloudSyncWorker.schedulePeriodicSync(context.applicationContext) }
                 }
