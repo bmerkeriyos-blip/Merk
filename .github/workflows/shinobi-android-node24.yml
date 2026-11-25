@@ -77,8 +77,8 @@ jobs:
           with open("app/google-services.json", "r", encoding="utf-8") as f:
               data = json.load(f)
           pkgs = [c.get("client_info", {}).get("android_client_info", {}).get("package_name") for c in data.get("client", [])]
-          if "com.aistudio.shinobiplanner.kxmpzq" not in pkgs:
-              print("::error::app/google-services.json does not configure package com.aistudio.shinobiplanner.kxmpzq.")
+          if "com.aistudio.shinobiplanner.vmrqzt" not in pkgs:
+              print("::error::app/google-services.json does not configure package com.aistudio.shinobiplanner.vmrqzt.")
               sys.exit(1)
           print("Verified app/google-services.json for packages:", pkgs)
           PY
